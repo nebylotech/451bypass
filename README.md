@@ -54,7 +54,7 @@ irm https://raw.githubusercontent.com/nebylotech/451bypass/main/install.ps1 | ie
 ===============================================================
   Обход Windows:          [ВКЛЮЧЕН (Работает)]
   Активных сайтов в базе: 477 (477 базовых, 0 своих)
-  Шлюз Cloudflare:        https://ai-gateway.whyx1ere.workers.dev
+  Шлюз Cloudflare:        https://ai-gateway.<your-subdomain>.workers.dev
 ---------------------------------------------------------------
   [1] Выключить системный обход (ON / OFF)
   [2] Проверить статус службы     - Verify Gateway, Worker, and Task health

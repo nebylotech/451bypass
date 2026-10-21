@@ -15,3 +15,7 @@ build/
 env/
 venv/
 config.json
+*.pid
+*.token
+*.key
+*.pem
