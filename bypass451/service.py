@@ -45,21 +45,15 @@ def install_task() -> Tuple[bool, str]:
     if sys.platform != "win32":
         return False, "Windows background task is only supported on Windows."
 
-    python_dir = Path(sys.executable).parent
-    pythonw_candidate = python_dir / "pythonw.exe"
-    runner_exe = str(pythonw_candidate if pythonw_candidate.exists() else sys.executable)
-
-    installed_script = PRIMARY_CONFIG_DIR / "451b.py"
-    if not installed_script.exists():
-        installed_script = PRIMARY_CONFIG_DIR / "51b.py"
-    if not installed_script.exists():
-        installed_script = Path(__file__).resolve().parent.parent / "451b.py"
+    cmd_runner = PRIMARY_CONFIG_DIR / "451b.cmd"
+    if not cmd_runner.exists():
+        cmd_runner = Path(__file__).resolve().parent.parent / "451b.cmd"
 
     subprocess.run(f'schtasks /delete /tn "{LEGACY_TASK_NAME}" /f', shell=True, capture_output=True, text=True)
 
     cmd = (
         f'schtasks /create /tn "{TASK_NAME}" '
-        f'/tr "\"{runner_exe}\" \"{installed_script}\" service run-once" '
+        f'/tr "cmd.exe /c \"\"{cmd_runner}\" service run-once\"" '
         f'/sc daily /st 04:00 /f'
     )
 

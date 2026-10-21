@@ -52,25 +52,14 @@ if (Test-Path $DomainsSrc) {
     Copy-Item -Path $DomainsSrc -Destination $InstallDir -Recurse -Force
 }
 
-foreach ($launcher in @("451b.py", "451bypass.py")) {
-    $lSrc = Join-Path $CurrentDir $launcher
-    if (Test-Path $lSrc) {
-        Copy-Item -Path $lSrc -Destination $InstallDir -Force
-    }
+$UnScript = Join-Path $CurrentDir "uninstall.ps1"
+if (Test-Path $UnScript) {
+    Copy-Item -Path $UnScript -Destination $InstallDir -Force
 }
 
-foreach ($unScript in @("uninstall.ps1", "uninstall.bat")) {
-    $uSrc = Join-Path $CurrentDir $unScript
-    if (Test-Path $uSrc) {
-        Copy-Item -Path $uSrc -Destination $InstallDir -Force
-    }
-}
-
-$CmdContent = "@echo off`r`n`"$($PythonCmd.Source)`" `"%~dp0451b.py`" %*"
-foreach ($cmdName in @("451b.cmd", "451bypass.cmd")) {
-    Set-Content -Path (Join-Path $InstallDir $cmdName) -Value $CmdContent -Encoding ASCII
-    Set-Content -Path (Join-Path $CurrentDir $cmdName) -Value $CmdContent -Encoding ASCII
-}
+$CmdContent = "@echo off`r`nset `"PYTHONPATH=%~dp0;%PYTHONPATH%`"`r`n`"$($PythonCmd.Source)`" -m bypass451 %*"
+Set-Content -Path (Join-Path $InstallDir "451b.cmd") -Value $CmdContent -Encoding ASCII
+Set-Content -Path (Join-Path $CurrentDir "451b.cmd") -Value $CmdContent -Encoding ASCII
 
 Write-Host "[+] Core files installed successfully." -ForegroundColor Green
 
@@ -176,25 +165,22 @@ Write-Host $InitRes
 if (-not $SkipService) {
     Write-Host ""
     Write-Host "[*] Registering background sync task in Windows Task Scheduler..." -ForegroundColor Yellow
-    $SrvRes = & $PythonCmd.Source (Join-Path $InstallDir "451b.py") service install 2>&1
+    $SrvRes = & (Join-Path $InstallDir "451b.cmd") service install 2>&1
     Write-Host $SrvRes
 }
 
 Write-Host ""
 Write-Host "[*] Running final verification..." -ForegroundColor Yellow
-& $PythonCmd.Source (Join-Path $InstallDir "451b.py") diagnostics
+& (Join-Path $InstallDir "451b.cmd") diagnostics
 
 Write-Host ""
 Write-Host "===============================================================" -ForegroundColor Green
 Write-Host "           451bypass IS FULLY INSTALLED AND READY!             " -ForegroundColor Green
 Write-Host "===============================================================" -ForegroundColor Green
 Write-Host ""
-Write-Host "  You can now type '451b' (or '451bypass') in ANY terminal:" -ForegroundColor Cyan
+Write-Host "  You can now type '451b' in ANY terminal:" -ForegroundColor Cyan
 Write-Host "    451b                   - Open interactive dashboard" -ForegroundColor White
 Write-Host "    451b test              - Test 451/403 bypass for AI APIs" -ForegroundColor White
 Write-Host "    451b domains list      - View all active proxied domains" -ForegroundColor White
 Write-Host "    451b sync              - Re-sync domains with Cloudflare" -ForegroundColor White
-Write-Host ""
-Write-Host "  Use in your Python code / LangChain / Cursor:" -ForegroundColor Yellow
-Write-Host "    base_url = 'https://$WorkerName.$ExistingSub.workers.dev/api.openai.com/v1'" -ForegroundColor Green
 Write-Host ""

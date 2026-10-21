@@ -13,7 +13,7 @@
 | Обычный VPN ❌ | 451bypass ⚡ |
 |---|---|
 | Тормозит весь интернет и режет скорость | **Скорость 100%**, интернет летает |
-| Ломает Сбер, Тинькофф, Госуслуги и игры | Сайты банков и игры работают напрямую |
+| Ломает банки, Госуслуги и игры | Сайты банков и игры работают напрямую |
 | Постоянно отваливается и требует включения/выключения | **Работает незаметно в фоне** 24/7 |
 | Платный или с рекламой | **Бесплатно навсегда** |
 
@@ -27,8 +27,6 @@
 ```powershell
 irm https://raw.githubusercontent.com/nebylotech/451bypass/main/install.ps1 | iex
 ```
-
-*(или скачайте архив с проектом и дважды кликните на `setup.bat`)*.
 
 Установщик сделает всё сам за пару секунд.
 
@@ -69,7 +67,7 @@ irm https://raw.githubusercontent.com/nebylotech/451bypass/main/install.ps1 | ie
 * 🤖 **Нейросети:** ChatGPT, OpenAI, Claude (Anthropic), Grok (xAI), Perplexity, Midjourney, ElevenLabs.
 * 🟢 **NVIDIA NIM & Omniverse:** полная победа над ошибкой «HTTP 451 Unavailable For Legal Reasons».
 * 💻 **Сервисы для работы:** Notion, Cursor, Canva, Figma, DeepL, JetBrains, Netlify, Docker.
-* 🎵 **Медиа и сервисы:** Spotify, Strava и многие другие.
+* 🎵 **Медиа и сервисы:** Spotify, Strava и сотни других.
 
 ---
 
@@ -82,35 +80,13 @@ irm https://raw.githubusercontent.com/nebylotech/451bypass/main/install.ps1 | ie
 
 ---
 
-### 💻 Для разработчиков (Python / Cursor / VS Code)
+### 🗑️ Удаление
 
-Если вы делаете скрипты на Python или используете Cursor / Continue, просто используйте адрес шлюза как `base_url`:
+Если захотите полностью удалить программу, службу и созданный воркер в 1 клик, просто запустите:
 
-```python
-from openai import OpenAI
-
-# Работаем с OpenAI или NVIDIA без VPN:
-client = OpenAI(
-    base_url="https://ai-gateway.whyx1ere.workers.dev/api.openai.com/v1",
-    api_key="ваш-ключ"
-)
+```powershell
+irm https://raw.githubusercontent.com/nebylotech/451bypass/main/uninstall.ps1 | iex
 ```
-
----
-
-### 💬 Частые вопросы (FAQ)
-
-**Это безопасно?**  
-Да, на 100%. Шлюз создаётся на вашем личном бесплатном аккаунте Cloudflare. Ваши пароли, токены и переписки никто, кроме вас, не видит.
-
-**Интернет станет медленнее?**  
-Нет. Трафик идёт через самый быстрый в мире CDN Cloudflare, а обычные сайты (YouTube, Telegram, ВКонтакте, игры) вообще не затрагиваются и идут напрямую.
-
-**Сколько это стоит?**  
-0 рублей. Cloudflare даёт 100 000 бесплатных запросов в день — обычному человеку этого хватит на месяцы непрерывной работы.
-
-**Как удалить программу, если больше не нужна?**  
-Запустите `uninstall.bat` (или выполните в PowerShell `irm https://raw.githubusercontent.com/nebylotech/451bypass/main/uninstall.ps1 | iex`). Скрипт сам выключит службу, удалит воркер с Cloudflare и очистит все файлы с компьютера.
 
 ---
 
