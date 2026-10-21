@@ -80,11 +80,6 @@ if ($env:Path -notlike "*$InstallDir*") {
 }
 
 $ConfigFile = Join-Path $InstallDir "config.json"
-$Legacy51Dir = Join-Path $env:LOCALAPPDATA "51-bypass"
-$DotConfigFile = Join-Path (Join-Path $env:USERPROFILE ".451bypass") "config.json"
-$LegacyDotConfigFile = Join-Path (Join-Path $env:USERPROFILE ".51-bypass") "config.json"
-$LegacyConfigFile = Join-Path (Join-Path $env:USERPROFILE ".cloudflare-dns") "config.json"
-
 $ExistingAcc = ""
 $ExistingTok = ""
 $ExistingSub = ""
@@ -98,44 +93,8 @@ if (Test-Path $ConfigFile) {
     } catch {}
 }
 
-if ((-not $ExistingAcc -or -not $ExistingTok) -and (Test-Path (Join-Path $Legacy51Dir "config.json"))) {
-    try {
-        $Json = Get-Content (Join-Path $Legacy51Dir "config.json") -Raw | ConvertFrom-Json
-        if (-not $ExistingAcc) { $ExistingAcc = $Json.account_id }
-        if (-not $ExistingTok) { $ExistingTok = $Json.api_token }
-        if (-not $ExistingSub) { $ExistingSub = $Json.subdomain }
-    } catch {}
-}
-
-if ((-not $ExistingAcc -or -not $ExistingTok) -and (Test-Path $DotConfigFile)) {
-    try {
-        $Json = Get-Content $DotConfigFile -Raw | ConvertFrom-Json
-        if (-not $ExistingAcc) { $ExistingAcc = $Json.account_id }
-        if (-not $ExistingTok) { $ExistingTok = $Json.api_token }
-        if (-not $ExistingSub) { $ExistingSub = $Json.subdomain }
-    } catch {}
-}
-
-if ((-not $ExistingAcc -or -not $ExistingTok) -and (Test-Path $LegacyDotConfigFile)) {
-    try {
-        $Json = Get-Content $LegacyDotConfigFile -Raw | ConvertFrom-Json
-        if (-not $ExistingAcc) { $ExistingAcc = $Json.account_id }
-        if (-not $ExistingTok) { $ExistingTok = $Json.api_token }
-        if (-not $ExistingSub) { $ExistingSub = $Json.subdomain }
-    } catch {}
-}
-
-if ((-not $ExistingAcc -or -not $ExistingTok) -and (Test-Path $LegacyConfigFile)) {
-    try {
-        $Json = Get-Content $LegacyConfigFile -Raw | ConvertFrom-Json
-        if (-not $ExistingAcc) { $ExistingAcc = $Json.AccountId }
-        if (-not $ExistingTok) { $ExistingTok = $Json.ApiToken }
-        if (-not $ExistingSub) { $ExistingSub = $Json.Subdomain }
-    } catch {}
-}
-
-if ($AccountId) { $ExistingAcc = $AccountId }
-if ($ApiToken) { $ExistingTok = $ApiToken }
+if ($AccountId) { $ExistingAcc = $AccountId.Trim() }
+if ($ApiToken) { $ExistingTok = $ApiToken.Trim() }
 
 if (-not $ExistingAcc -or -not $ExistingTok) {
     if ($NonInteractive) {
@@ -144,14 +103,20 @@ if (-not $ExistingAcc -or -not $ExistingTok) {
     }
 
     Write-Host ""
-    Write-Host "=== Cloudflare Workers Configuration ===" -ForegroundColor Yellow
-    Write-Host "Credentials can be obtained free from https://dash.cloudflare.com" -ForegroundColor Cyan
-    Write-Host "1. Account ID: 32-character string on the right side of Cloudflare Dashboard."
-    Write-Host "2. API Token: My Profile -> API Tokens -> Create Token -> 'Edit Cloudflare Workers'."
+    Write-Host "===============================================================" -ForegroundColor Yellow
+    Write-Host "             Cloudflare Workers Configuration                  " -ForegroundColor Yellow
+    Write-Host "===============================================================" -ForegroundColor Yellow
+    Write-Host "To set up your zero-cost gateway, enter your Cloudflare API credentials:" -ForegroundColor Cyan
+    Write-Host "  1. Account ID: 32-character ID from your Cloudflare dashboard (right column)." -ForegroundColor White
+    Write-Host "  2. API Token: Profile -> API Tokens -> Create Token -> 'Edit Cloudflare Workers'." -ForegroundColor White
     Write-Host ""
 
-    $ExistingAcc = Read-Host "Enter Cloudflare Account ID [$ExistingAcc]"
-    $ExistingTok = Read-Host "Enter Cloudflare API Token"
+    while (-not $ExistingAcc) {
+        $ExistingAcc = (Read-Host "Enter Cloudflare Account ID").Trim()
+    }
+    while (-not $ExistingTok) {
+        $ExistingTok = (Read-Host "Enter Cloudflare API Token").Trim()
+    }
 }
 
 Write-Host ""

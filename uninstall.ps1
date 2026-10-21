@@ -68,7 +68,8 @@ $dirsToRemove = @(
     $InstallDir,
     (Join-Path $env:LOCALAPPDATA "51-bypass"),
     (Join-Path $env:USERPROFILE ".451bypass"),
-    (Join-Path $env:USERPROFILE ".51-bypass")
+    (Join-Path $env:USERPROFILE ".51-bypass"),
+    (Join-Path $env:USERPROFILE ".cloudflare-dns")
 )
 
 foreach ($d in $dirsToRemove) {
