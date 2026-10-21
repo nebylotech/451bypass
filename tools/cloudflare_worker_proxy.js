@@ -4,6 +4,23 @@ const CUSTOM_DOMAINS = new Set([]);
 const REMOTE_CORE_URL = "https://raw.githubusercontent.com/nebylotech/451bypass/main/domains/core.txt";
 const DEFAULT_DOMAIN = "";
 
+const CF_PROXIED_ROOTS = [
+  "chatgpt.com",
+  "openai.com",
+  "oaistatic.com",
+  "oaiusercontent.com",
+  "sora.com",
+  "claude.ai",
+  "anthropic.com",
+  "grok.com",
+  "x.ai"
+];
+
+const PROXY_HOSTS = [
+  "proxyip.cmliussss.net",
+  "proxyip.aliyun.fxxk.dedyn.io"
+];
+
 let cachedCoreDomains = null;
 let lastCoreFetch = 0;
 const CORE_CACHE_TTL_MS = 3600000;
@@ -47,6 +64,41 @@ function isDomainAllowed(host, coreDomains, customDomains) {
   return false;
 }
 
+function isKnownCloudflare(host) {
+  if (!host) return false;
+  host = host.toLowerCase().trim();
+  return CF_PROXIED_ROOTS.some(r => host === r || host.endsWith("." + r));
+}
+
+async function connectUpstream(targetHost, targetPort) {
+  if (isKnownCloudflare(targetHost)) {
+    for (const pHost of PROXY_HOSTS) {
+      try {
+        const sock = connect({ hostname: pHost, port: targetPort });
+        await sock.opened;
+        return sock;
+      } catch (e) {
+      }
+    }
+  }
+
+  try {
+    const directSock = connect({ hostname: targetHost, port: targetPort });
+    await directSock.opened;
+    return directSock;
+  } catch (err) {
+    for (const pHost of PROXY_HOSTS) {
+      try {
+        const fallbackSock = connect({ hostname: pHost, port: targetPort });
+        await fallbackSock.opened;
+        return fallbackSock;
+      } catch (e) {
+      }
+    }
+    throw err;
+  }
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -73,18 +125,17 @@ export default {
         return new Response(`Domain '${host}' not allowed by 451bypass policy`, { status: 403 });
       }
 
+      let tcpSocket;
+      try {
+        tcpSocket = await connectUpstream(host, port);
+      } catch (err) {
+        return new Response(`Failed to connect to ${host}:${port}: ${err.message}`, { status: 502 });
+      }
+
       const webSocketPair = new WebSocketPair();
       const [client, server] = Object.values(webSocketPair);
 
       server.accept();
-
-      let tcpSocket;
-      try {
-        tcpSocket = connect({ hostname: host, port: port });
-      } catch (err) {
-        server.close(1011, "Connect error: " + err.message);
-        return new Response(null, { status: 101, webSocket: client });
-      }
 
       const writer = tcpSocket.writable.getWriter();
       const reader = tcpSocket.readable.getReader();
@@ -167,8 +218,9 @@ export default {
       return new Response(
         JSON.stringify({
           status: "ok",
-          gateway: "451bypass AI Gateway & Tunnel",
+          gateway: "451bypass AI Gateway and Tunnel",
           tunnel: "active",
+          sni_fallback: "active",
           default_domain: DEFAULT_DOMAIN || null,
           core_domains_count: coreDomains.size,
           custom_domains_count: CUSTOM_DOMAINS.size,
