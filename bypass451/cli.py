@@ -61,6 +61,7 @@ def build_parser() -> argparse.ArgumentParser:
     srv_parser = subparsers.add_parser("service", help="Manage Windows background synchronization service")
     srv_parser.add_argument("action", choices=["install", "uninstall", "status", "run-once"], help="Service action")
 
+    subparsers.add_parser("uninstall", help="Uninstall 451bypass, delete worker, and clean system")
     subparsers.add_parser("version", help="Print version information")
 
     return parser
@@ -176,6 +177,23 @@ def main() -> None:
             elif args.action == "run-once":
                 ok, msg = run_service_cycle()
                 print(success(msg) if ok else error(msg))
+
+        elif args.subcommand == "uninstall":
+            import subprocess
+            from .config import PRIMARY_CONFIG_DIR
+            un_candidates = [
+                Path(__file__).resolve().parent.parent / "uninstall.ps1",
+                PRIMARY_CONFIG_DIR / "uninstall.ps1"
+            ]
+            target_ps = None
+            for cand in un_candidates:
+                if cand.exists():
+                    target_ps = cand
+                    break
+            if target_ps and sys.platform == "win32":
+                subprocess.run(f'powershell -ExecutionPolicy Bypass -File "{target_ps}"', shell=True)
+            else:
+                print("Uninstallation script not found or non-Windows system.")
 
         elif args.subcommand == "version":
             print(f"{__product_name__} v{__version__}")

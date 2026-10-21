@@ -47,25 +47,27 @@ if (Test-Path $PackageSrc) {
     Copy-Item -Path $PackageSrc -Destination $InstallDir -Recurse -Force
 }
 
-$LegacyPackageSrc = Join-Path $CurrentDir "bypass51"
-if (Test-Path $LegacyPackageSrc) {
-    Copy-Item -Path $LegacyPackageSrc -Destination $InstallDir -Recurse -Force
-}
-
 $DomainsSrc = Join-Path $CurrentDir "domains"
 if (Test-Path $DomainsSrc) {
     Copy-Item -Path $DomainsSrc -Destination $InstallDir -Recurse -Force
 }
 
-foreach ($launcher in @("451b.py", "451bypass.py", "51b.py")) {
+foreach ($launcher in @("451b.py", "451bypass.py")) {
     $lSrc = Join-Path $CurrentDir $launcher
     if (Test-Path $lSrc) {
         Copy-Item -Path $lSrc -Destination $InstallDir -Force
     }
 }
 
+foreach ($unScript in @("uninstall.ps1", "uninstall.bat")) {
+    $uSrc = Join-Path $CurrentDir $unScript
+    if (Test-Path $uSrc) {
+        Copy-Item -Path $uSrc -Destination $InstallDir -Force
+    }
+}
+
 $CmdContent = "@echo off`r`n`"$($PythonCmd.Source)`" `"%~dp0451b.py`" %*"
-foreach ($cmdName in @("451b.cmd", "451bypass.cmd", "51b.cmd")) {
+foreach ($cmdName in @("451b.cmd", "451bypass.cmd")) {
     Set-Content -Path (Join-Path $InstallDir $cmdName) -Value $CmdContent -Encoding ASCII
     Set-Content -Path (Join-Path $CurrentDir $cmdName) -Value $CmdContent -Encoding ASCII
 }
@@ -187,7 +189,7 @@ Write-Host "===============================================================" -Fo
 Write-Host "           451bypass IS FULLY INSTALLED AND READY!             " -ForegroundColor Green
 Write-Host "===============================================================" -ForegroundColor Green
 Write-Host ""
-Write-Host "  You can now type '451b' (or '451bypass', '51b') in ANY terminal:" -ForegroundColor Cyan
+Write-Host "  You can now type '451b' (or '451bypass') in ANY terminal:" -ForegroundColor Cyan
 Write-Host "    451b                   - Open interactive dashboard" -ForegroundColor White
 Write-Host "    451b test              - Test 451/403 bypass for AI APIs" -ForegroundColor White
 Write-Host "    451b domains list      - View all active proxied domains" -ForegroundColor White

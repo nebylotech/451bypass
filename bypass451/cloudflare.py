@@ -146,6 +146,13 @@ def deploy_worker_script(
         return True
     return False
 
+def delete_worker_script(account_id: str, worker_name: str, token: str) -> bool:
+    try:
+        resp = _api_request("DELETE", f"/accounts/{account_id}/workers/scripts/{worker_name}", token)
+        return bool(resp.get("success"))
+    except Exception:
+        return False
+
 def check_worker_live_health(worker_name: str, subdomain: str, timeout: float = 8.0) -> Tuple[bool, str]:
     url = f"https://{worker_name}.{subdomain}.workers.dev/health"
     req = urllib.request.Request(url, headers={"User-Agent": "451bypass/1.0"})

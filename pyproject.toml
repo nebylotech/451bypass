@@ -23,7 +23,6 @@ classifiers = [
 [project.scripts]
 451b = "bypass451.cli:main"
 451bypass = "bypass451.cli:main"
-51b = "bypass451.cli:main"
 
 [tool.setuptools.packages.find]
-include = ["bypass451*", "bypass51*"]
+include = ["bypass451*"]
