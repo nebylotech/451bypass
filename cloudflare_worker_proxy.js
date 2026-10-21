@@ -1,5 +1,5 @@
 const CUSTOM_DOMAINS = new Set([]);
-const REMOTE_CORE_URL = "https://raw.githubusercontent.com/451bypass/domains/main/domains/core.txt";
+const REMOTE_CORE_URL = "https://raw.githubusercontent.com/nebylotech/451bypass/main/domains/core.txt";
 const DEFAULT_DOMAIN = "";
 
 let cachedCoreDomains = null;

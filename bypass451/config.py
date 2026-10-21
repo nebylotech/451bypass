@@ -28,7 +28,7 @@ LEGACY_DOT_CONFIG_PATH = LEGACY_DOT_CONFIG_DIR / "config.json"
 LEGACY_CONFIG_DIR = Path.home() / ".cloudflare-dns"
 LEGACY_CONFIG_PATH = LEGACY_CONFIG_DIR / "config.json"
 
-DEFAULT_REMOTE_DOMAINS_URL = "https://raw.githubusercontent.com/451bypass/domains/main/domains/core.txt"
+DEFAULT_REMOTE_DOMAINS_URL = "https://raw.githubusercontent.com/nebylotech/451bypass/main/domains/core.txt"
 
 @dataclass
 class AppConfig:

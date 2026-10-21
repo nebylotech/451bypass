@@ -13,7 +13,7 @@
 Откройте PowerShell и выполните:
 
 ```powershell
-irm https://raw.githubusercontent.com/451bypass/domains/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/nebylotech/451bypass/main/install.ps1 | iex
 ```
 
 *(или просто скачайте репозиторий и дважды кликните на `setup.bat`)*.
