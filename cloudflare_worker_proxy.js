@@ -1,18 +1,3 @@
-const FALLBACK_CORE_DOMAINS = new Set([
-  "api.anthropic.com",
-  "api.cohere.ai",
-  "api.deepseek.com",
-  "api.elevenlabs.io",
-  "api.groq.com",
-  "api.mistral.ai",
-  "api.ngc.nvidia.com",
-  "api.openai.com",
-  "api.perplexity.ai",
-  "api.x.ai",
-  "build.nvidia.com",
-  "integrate.api.nvidia.com",
-  "openrouter.ai"
-]);
 const CUSTOM_DOMAINS = new Set([]);
 const REMOTE_CORE_URL = "https://raw.githubusercontent.com/451bypass/domains/main/domains/core.txt";
 const DEFAULT_DOMAIN = "";
@@ -37,17 +22,15 @@ async function getCoreDomains(env) {
         const list = text.split("\n")
           .map(l => l.trim().toLowerCase())
           .filter(l => l && !l.startsWith("#"));
-        if (list.length > 0) {
-          cachedCoreDomains = new Set(list);
-          lastCoreFetch = now;
-          return cachedCoreDomains;
-        }
+        cachedCoreDomains = new Set(list);
+        lastCoreFetch = now;
+        return cachedCoreDomains;
       }
     } catch (e) {
     }
   }
   if (cachedCoreDomains) return cachedCoreDomains;
-  return FALLBACK_CORE_DOMAINS;
+  return new Set();
 }
 
 export default {

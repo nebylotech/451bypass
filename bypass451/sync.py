@@ -6,34 +6,16 @@ from .config import AppConfig, save_config, DEFAULT_REMOTE_DOMAINS_URL
 from .lists import load_custom_domains, load_core_domains
 from .cloudflare import deploy_worker_script, CloudflareAPIError, check_worker_live_health
 
-FALLBACK_CORE_LIST = [
-    "api.anthropic.com",
-    "api.cohere.ai",
-    "api.deepseek.com",
-    "api.elevenlabs.io",
-    "api.groq.com",
-    "api.mistral.ai",
-    "api.ngc.nvidia.com",
-    "api.openai.com",
-    "api.perplexity.ai",
-    "api.x.ai",
-    "build.nvidia.com",
-    "integrate.api.nvidia.com",
-    "openrouter.ai"
-]
-
 def generate_worker_script(
     custom_domains: List[str],
     default_domain: str = "",
     remote_core_url: str = DEFAULT_REMOTE_DOMAINS_URL
 ) -> str:
-    fallback_json = json.dumps(FALLBACK_CORE_LIST)
     custom_json = json.dumps(custom_domains)
     default_json = json.dumps(default_domain)
     remote_url_json = json.dumps(remote_core_url)
 
-    return f"""const FALLBACK_CORE_DOMAINS = new Set({fallback_json});
-const CUSTOM_DOMAINS = new Set({custom_json});
+    return f"""const CUSTOM_DOMAINS = new Set({custom_json});
 const REMOTE_CORE_URL = {remote_url_json};
 const DEFAULT_DOMAIN = {default_json};
 
@@ -57,17 +39,15 @@ async function getCoreDomains(env) {{
         const list = text.split("\\n")
           .map(l => l.trim().toLowerCase())
           .filter(l => l && !l.startsWith("#"));
-        if (list.length > 0) {{
-          cachedCoreDomains = new Set(list);
-          lastCoreFetch = now;
-          return cachedCoreDomains;
-        }}
+        cachedCoreDomains = new Set(list);
+        lastCoreFetch = now;
+        return cachedCoreDomains;
       }}
     }} catch (e) {{
     }}
   }}
   if (cachedCoreDomains) return cachedCoreDomains;
-  return FALLBACK_CORE_DOMAINS;
+  return new Set();
 }}
 
 export default {{

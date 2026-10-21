@@ -15,22 +15,6 @@ from .config import (
 )
 from .utils import normalize_domain, is_valid_domain
 
-DEFAULT_FALLBACK_CORE = [
-    "api.anthropic.com",
-    "api.cohere.ai",
-    "api.deepseek.com",
-    "api.elevenlabs.io",
-    "api.groq.com",
-    "api.mistral.ai",
-    "api.ngc.nvidia.com",
-    "api.openai.com",
-    "api.perplexity.ai",
-    "api.x.ai",
-    "build.nvidia.com",
-    "integrate.api.nvidia.com",
-    "openrouter.ai"
-]
-
 def find_repo_domains_dir() -> Optional[Path]:
     candidates = [
         Path.cwd() / "domains",
@@ -89,7 +73,7 @@ def get_core_domains_file() -> Path:
             except Exception:
                 pass
         else:
-            CORE_DOMAINS_PATH.write_text("\n".join(DEFAULT_FALLBACK_CORE) + "\n", encoding="utf-8")
+            CORE_DOMAINS_PATH.write_text("", encoding="utf-8")
     return CORE_DOMAINS_PATH
 
 def load_core_domains() -> List[str]:
@@ -109,7 +93,7 @@ def load_core_domains() -> List[str]:
                 return sorted(res)
         except Exception:
             pass
-    return sorted(DEFAULT_FALLBACK_CORE)
+    return []
 
 def save_core_domains(domains: List[str]) -> None:
     valid = sorted(list(dict.fromkeys(normalize_domain(d) for d in domains if is_valid_domain(normalize_domain(d)))))
