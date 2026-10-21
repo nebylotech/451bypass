@@ -66,6 +66,17 @@ def get_core_domains_file() -> Path:
                 pass
         else:
             CORE_DOMAINS_PATH.write_text("", encoding="utf-8")
+
+    repo_dir = find_repo_domains_dir()
+    if repo_dir:
+        repo_core = repo_dir / "core.txt"
+        if repo_core.exists() and repo_core.resolve() != CORE_DOMAINS_PATH.resolve():
+            try:
+                if repo_core.stat().st_mtime > CORE_DOMAINS_PATH.stat().st_mtime:
+                    shutil.copy2(repo_core, CORE_DOMAINS_PATH)
+            except Exception:
+                pass
+
     return CORE_DOMAINS_PATH
 
 def load_core_domains() -> List[str]:

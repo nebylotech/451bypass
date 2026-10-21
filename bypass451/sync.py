@@ -9,14 +9,19 @@ from .cloudflare import deploy_worker_script, CloudflareAPIError, check_worker_l
 def generate_worker_script(
     custom_domains: List[str],
     default_domain: str = "",
-    remote_core_url: str = DEFAULT_REMOTE_DOMAINS_URL
+    remote_core_url: str = DEFAULT_REMOTE_DOMAINS_URL,
+    core_domains: Optional[List[str]] = None
 ) -> str:
+    if core_domains is None:
+        core_domains = load_core_domains()
     custom_json = json.dumps(custom_domains)
+    core_json = json.dumps(core_domains)
     default_json = json.dumps(default_domain)
     remote_url_json = json.dumps(remote_core_url)
 
     return f"""import {{ connect }} from 'cloudflare:sockets';
 
+const EMBEDDED_CORE_DOMAINS = new Set({core_json});
 const CUSTOM_DOMAINS = new Set({custom_json});
 const REMOTE_CORE_URL = {remote_url_json};
 const DEFAULT_DOMAIN = {default_json};
@@ -58,7 +63,7 @@ async function getCoreDomains(env) {{
         const list = text.split("\\n")
           .map(l => l.trim().toLowerCase())
           .filter(l => l && !l.startsWith("#"));
-        cachedCoreDomains = new Set(list);
+        cachedCoreDomains = new Set([...EMBEDDED_CORE_DOMAINS, ...list]);
         lastCoreFetch = now;
         return cachedCoreDomains;
       }}
@@ -66,7 +71,7 @@ async function getCoreDomains(env) {{
     }}
   }}
   if (cachedCoreDomains) return cachedCoreDomains;
-  return new Set();
+  return EMBEDDED_CORE_DOMAINS;
 }}
 
 function isDomainAllowed(host, coreDomains, customDomains) {{
