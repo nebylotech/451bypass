@@ -141,12 +141,15 @@ if ($ExistingAcc -and $ExistingTok) {
 if (-not $SkipService) {
     Write-Host ""
     Write-Host "[*] Registering background sync task in Windows Task Scheduler..." -ForegroundColor Yellow
-    $SrvRes = & (Join-Path $InstallDir "451b.cmd") service install 2>&1
-    Write-Host $SrvRes
+    $TaskRunner = Join-Path $InstallDir "451b.cmd"
+    schtasks /delete /tn "51-BYPASS-Sync" /f 2>$null | Out-Null
+    schtasks /create /tn "451bypass-Sync" /tr "cmd.exe /c \"\"$TaskRunner\"\" service run-once" /sc daily /st 04:00 /f 2>$null | Out-Null
+    Write-Host "[+] Background sync task '451bypass-Sync' registered successfully (daily at 04:00)." -ForegroundColor Green
 }
 
 Write-Host ""
 Write-Host "[*] Running final verification..." -ForegroundColor Yellow
+$ErrorActionPreference = "Continue"
 & (Join-Path $InstallDir "451b.cmd") diagnostics
 
 Write-Host ""

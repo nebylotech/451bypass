@@ -49,7 +49,7 @@ def install_task() -> Tuple[bool, str]:
     if not cmd_runner.exists():
         cmd_runner = Path(__file__).resolve().parent.parent / "451b.cmd"
 
-    subprocess.run(f'schtasks /delete /tn "{LEGACY_TASK_NAME}" /f', shell=True, capture_output=True, text=True)
+    subprocess.run(f'schtasks /delete /tn "{LEGACY_TASK_NAME}" /f', shell=True, capture_output=True, text=True, errors="replace")
 
     cmd = (
         f'schtasks /create /tn "{TASK_NAME}" '
@@ -58,7 +58,7 @@ def install_task() -> Tuple[bool, str]:
     )
 
     try:
-        res = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+        res = subprocess.run(cmd, shell=True, capture_output=True, text=True, errors="replace")
         if res.returncode == 0:
             return True, f"Windows scheduled task '{TASK_NAME}' registered successfully (daily at 04:00)."
         return False, f"Failed to register task: {res.stderr.strip() or res.stdout.strip()}"
@@ -69,10 +69,10 @@ def uninstall_task() -> Tuple[bool, str]:
     if sys.platform != "win32":
         return False, "Not running on Windows."
 
-    subprocess.run(f'schtasks /delete /tn "{LEGACY_TASK_NAME}" /f', shell=True, capture_output=True, text=True)
+    subprocess.run(f'schtasks /delete /tn "{LEGACY_TASK_NAME}" /f', shell=True, capture_output=True, text=True, errors="replace")
     cmd = f'schtasks /delete /tn "{TASK_NAME}" /f'
     try:
-        res = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+        res = subprocess.run(cmd, shell=True, capture_output=True, text=True, errors="replace")
         if res.returncode == 0 or "cannot find" in res.stderr.lower():
             return True, f"Windows task '{TASK_NAME}' removed."
         return False, f"Failed to remove task: {res.stderr.strip()}"
@@ -85,7 +85,7 @@ def get_task_status() -> Tuple[str, str]:
 
     cmd = f'schtasks /query /tn "{TASK_NAME}" /fo LIST'
     try:
-        res = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+        res = subprocess.run(cmd, shell=True, capture_output=True, text=True, errors="replace")
         if res.returncode == 0:
             status_line = "Active"
             for line in res.stdout.splitlines():
@@ -93,7 +93,7 @@ def get_task_status() -> Tuple[str, str]:
                     status_line = line.split(":", 1)[1].strip()
             return "INSTALLED", status_line
         
-        legacy_res = subprocess.run(f'schtasks /query /tn "{LEGACY_TASK_NAME}" /fo LIST', shell=True, capture_output=True, text=True)
+        legacy_res = subprocess.run(f'schtasks /query /tn "{LEGACY_TASK_NAME}" /fo LIST', shell=True, capture_output=True, text=True, errors="replace")
         if legacy_res.returncode == 0:
             return "INSTALLED", "Legacy task active"
 
