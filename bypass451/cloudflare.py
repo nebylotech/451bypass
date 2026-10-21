@@ -171,9 +171,13 @@ def delete_worker_script(account_id: str, worker_name: str, token: str) -> bool:
     except Exception:
         return False
 
-def check_worker_live_health(worker_name: str, subdomain: str, timeout: float = 8.0) -> Tuple[bool, str]:
-    url = f"https://{worker_name}.{subdomain}.workers.dev/health"
-    req = urllib.request.Request(url, headers={"User-Agent": "451bypass/1.0"})
+def check_worker_live_health(worker_name: str, subdomain: str, secret: str = "", timeout: float = 8.0) -> Tuple[bool, str]:
+    secret_param = f"?secret={secret}" if secret else ""
+    url = f"https://{worker_name}.{subdomain}.workers.dev/health{secret_param}"
+    headers = {"User-Agent": "451bypass/1.0"}
+    if secret:
+        headers["X-451bypass-Secret"] = secret
+    req = urllib.request.Request(url, headers=headers)
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             if resp.status == 200:

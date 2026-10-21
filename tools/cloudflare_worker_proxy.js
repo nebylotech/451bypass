@@ -4,6 +4,7 @@ const EMBEDDED_CORE_DOMAINS = new Set(["4pda.to", "4pda.ws", "a-vrv.akamaized.ne
 const CUSTOM_DOMAINS = new Set([]);
 const REMOTE_CORE_URL = "https://raw.githubusercontent.com/nebylotech/451bypass/main/domains/core.txt";
 const DEFAULT_DOMAIN = "";
+const GATEWAY_SECRET = "";
 
 const CF_PROXIED_ROOTS = [
   "chatgpt.com",
@@ -103,6 +104,18 @@ async function connectUpstream(targetHost, targetPort) {
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+
+    // Security check: require secret token to prevent unauthorized public access
+    const secret = (env && env.GATEWAY_SECRET) || GATEWAY_SECRET;
+    if (secret) {
+      const clientSecret = request.headers.get("X-451bypass-Secret") || url.searchParams.get("secret");
+      if (clientSecret !== secret) {
+        return new Response("Not Found", {
+          status: 404,
+          headers: { "Content-Type": "text/plain; charset=utf-8" }
+        });
+      }
+    }
 
     // 1. WebSocket TCP Tunnel for HTTPS (CONNECT)
     if (url.pathname === "/tunnel") {

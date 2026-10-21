@@ -10,7 +10,8 @@ def generate_worker_script(
     custom_domains: List[str],
     default_domain: str = "",
     remote_core_url: str = DEFAULT_REMOTE_DOMAINS_URL,
-    core_domains: Optional[List[str]] = None
+    core_domains: Optional[List[str]] = None,
+    gateway_secret: str = ""
 ) -> str:
     if core_domains is None:
         core_domains = load_core_domains()
@@ -18,6 +19,7 @@ def generate_worker_script(
     core_json = json.dumps(core_domains)
     default_json = json.dumps(default_domain)
     remote_url_json = json.dumps(remote_core_url)
+    secret_json = json.dumps(gateway_secret)
 
     return f"""import {{ connect }} from 'cloudflare:sockets';
 
@@ -25,6 +27,7 @@ const EMBEDDED_CORE_DOMAINS = new Set({core_json});
 const CUSTOM_DOMAINS = new Set({custom_json});
 const REMOTE_CORE_URL = {remote_url_json};
 const DEFAULT_DOMAIN = {default_json};
+const GATEWAY_SECRET = {secret_json};
 
 const CF_PROXIED_ROOTS = [
   "chatgpt.com",
@@ -124,6 +127,18 @@ async function connectUpstream(targetHost, targetPort) {{
 export default {{
   async fetch(request, env, ctx) {{
     const url = new URL(request.url);
+
+    // Security check: require secret token to prevent unauthorized public access
+    const secret = (env && env.GATEWAY_SECRET) || GATEWAY_SECRET;
+    if (secret) {{
+      const clientSecret = request.headers.get("X-451bypass-Secret") || url.searchParams.get("secret");
+      if (clientSecret !== secret) {{
+        return new Response("Not Found", {{
+          status: 404,
+          headers: {{ "Content-Type": "text/plain; charset=utf-8" }}
+        }});
+      }}
+    }}
 
     // 1. WebSocket TCP Tunnel for HTTPS (CONNECT)
     if (url.pathname === "/tunnel") {{
@@ -364,7 +379,7 @@ def sync_to_cloudflare(cfg: AppConfig, force: bool = False) -> Tuple[bool, str]:
     if not force and cfg.last_sync_status == "OK" and cfg.last_sync_domain_count == len(custom_domains):
         return True, "Already in sync"
 
-    script = generate_worker_script(custom_domains, cfg.default_domain, cfg.remote_domains_url)
+    script = generate_worker_script(custom_domains, cfg.default_domain, cfg.remote_domains_url, gateway_secret=cfg.gateway_secret)
 
     try:
         success = deploy_worker_script(
@@ -398,5 +413,5 @@ def sync_to_cloudflare(cfg: AppConfig, force: bool = False) -> Tuple[bool, str]:
 
 def export_worker_script(cfg: AppConfig, path: Path) -> None:
     custom_domains = load_custom_domains()
-    script = generate_worker_script(custom_domains, cfg.default_domain, cfg.remote_domains_url)
+    script = generate_worker_script(custom_domains, cfg.default_domain, cfg.remote_domains_url, gateway_secret=cfg.gateway_secret)
     path.write_text(script, encoding="utf-8")

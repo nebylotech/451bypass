@@ -72,7 +72,7 @@ def menu_check_service(cfg: AppConfig, pause: bool = True) -> None:
     worker_latency = 0.0
 
     if cfg.worker_name and cfg.subdomain:
-        worker_online, h_msg = check_worker_live_health(cfg.worker_name, cfg.subdomain)
+        worker_online, h_msg = check_worker_live_health(cfg.worker_name, cfg.subdomain, secret=cfg.gateway_secret)
         worker_latency = round((time.perf_counter() - t0) * 1000, 1)
         worker_detail = f"{h_msg} ({worker_latency}ms)" if worker_online else f"Unavailable: {h_msg}"
 

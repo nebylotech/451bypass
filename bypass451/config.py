@@ -24,6 +24,7 @@ class AppConfig:
     schema_version: int = SCHEMA_VERSION
     account_id: str = ""
     api_token: str = ""
+    gateway_secret: str = ""
     worker_name: str = "ai-gateway"
     subdomain: str = ""
     default_domain: str = ""
@@ -40,6 +41,7 @@ def get_config_dir() -> Path:
     return PRIMARY_CONFIG_DIR
 
 def load_config() -> AppConfig:
+    import secrets
     get_config_dir()
 
     if PRIMARY_CONFIG_PATH.exists():
@@ -47,10 +49,11 @@ def load_config() -> AppConfig:
             with open(PRIMARY_CONFIG_PATH, "r", encoding="utf-8") as f:
                 raw = json.load(f)
 
-            return AppConfig(
-                schema_version=raw.get("schema_version", 1),
+            cfg = AppConfig(
+                schema_version=raw.get("schema_version", SCHEMA_VERSION),
                 account_id=raw.get("account_id", ""),
                 api_token=raw.get("api_token", ""),
+                gateway_secret=raw.get("gateway_secret", ""),
                 worker_name=raw.get("worker_name", "ai-gateway"),
                 subdomain=raw.get("subdomain", ""),
                 default_domain=raw.get("default_domain", ""),
@@ -61,6 +64,10 @@ def load_config() -> AppConfig:
                 last_sync_domain_count=raw.get("last_sync_domain_count", 0),
                 last_custom_hash=raw.get("last_custom_hash"),
             )
+            if not cfg.gateway_secret:
+                cfg.gateway_secret = secrets.token_hex(24)
+                save_config(cfg)
+            return cfg
         except Exception:
             if BACKUP_CONFIG_PATH.exists():
                 try:
@@ -69,7 +76,7 @@ def load_config() -> AppConfig:
                 except Exception:
                     pass
 
-    default_cfg = AppConfig()
+    default_cfg = AppConfig(gateway_secret=secrets.token_hex(24))
     save_config(default_cfg)
     return default_cfg
 

@@ -144,7 +144,7 @@ def run_diagnostics(cfg: AppConfig, save_path: Optional[Path] = None) -> List[Di
     # 7. Worker Health
     t0 = time.perf_counter()
     if cfg.subdomain and cfg.worker_name:
-        healthy, h_msg = check_worker_live_health(cfg.worker_name, cfg.subdomain)
+        healthy, h_msg = check_worker_live_health(cfg.worker_name, cfg.subdomain, secret=cfg.gateway_secret)
         results.append(DiagnosticItem(
             name="Worker /health",
             status="PASS" if healthy else "WARN",

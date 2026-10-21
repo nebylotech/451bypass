@@ -72,11 +72,10 @@ def start_daemon(enable_pac: bool = True, port: int = DEFAULT_PROXY_PORT) -> Tup
     env["PYTHONPATH"] = f"{pkg_dir};{install_dir};{env.get('PYTHONPATH', '')}"
 
     PRIMARY_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-    log_fp = open(DAEMON_LOG, "a", encoding="utf-8")
 
     creation_flags = 0
     if sys.platform == "win32":
-        creation_flags = subprocess.CREATE_NO_WINDOW
+        creation_flags = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS
 
     cmd = [python_bin, "-m", "bypass451.daemon", "run"]
 
@@ -86,8 +85,8 @@ def start_daemon(enable_pac: bool = True, port: int = DEFAULT_PROXY_PORT) -> Tup
             cwd=str(pkg_dir),
             env=env,
             creationflags=creation_flags,
-            stdout=log_fp,
-            stderr=log_fp,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
             stdin=subprocess.DEVNULL
         )
 

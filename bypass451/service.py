@@ -132,7 +132,7 @@ def run_service_cycle() -> Tuple[bool, str]:
         return False, "Cloudflare credentials not configured"
 
     if cfg.worker_name and cfg.subdomain:
-        healthy, h_msg = check_worker_live_health(cfg.worker_name, cfg.subdomain)
+        healthy, h_msg = check_worker_live_health(cfg.worker_name, cfg.subdomain, secret=cfg.gateway_secret)
         log_service_message(f"Worker health check: {h_msg}")
 
     duplicates, remaining, synced, msg = reconcile_custom_domains(cfg)

@@ -2,6 +2,7 @@ import os
 import sys
 import json
 import time
+import socket
 import asyncio
 import winreg
 import ctypes
@@ -123,7 +124,8 @@ class LocalProxy:
         self._session = None
 
     def _get_worker_tunnel_url(self, target: str) -> str:
-        return f"https://{self.cfg.worker_name}.{self.cfg.subdomain}.workers.dev/tunnel?target={target}"
+        secret_param = f"&secret={self.cfg.gateway_secret}" if self.cfg.gateway_secret else ""
+        return f"https://{self.cfg.worker_name}.{self.cfg.subdomain}.workers.dev/tunnel?target={target}{secret_param}"
 
     async def handle_client(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
         import aiohttp
@@ -200,9 +202,13 @@ class LocalProxy:
             self.total_tunnels += 1
 
             client_timeout = aiohttp.ClientTimeout(total=None, connect=15.0)
+            ws_headers = {"User-Agent": "451bypass/1.0"}
+            if self.cfg.gateway_secret:
+                ws_headers["X-451bypass-Secret"] = self.cfg.gateway_secret
+
             async with aiohttp.ClientSession(timeout=client_timeout) as session:
                 try:
-                    async with session.ws_connect(tunnel_url, headers={"User-Agent": "451bypass/1.0"}) as ws:
+                    async with session.ws_connect(tunnel_url, headers=ws_headers) as ws:
                         writer.write(b"HTTP/1.1 200 Connection Established\r\n\r\n")
                         await writer.drain()
 
@@ -263,7 +269,10 @@ class LocalProxy:
 
     async def start(self):
         try:
-            self.server = await asyncio.start_server(self.handle_client, "127.0.0.1", self.port)
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            sock.bind(("127.0.0.1", self.port))
+            self.server = await asyncio.start_server(self.handle_client, sock=sock)
         except OSError as e:
             if getattr(e, "winerror", None) == 10048 or "already in use" in str(e).lower():
                 if is_proxy_running(self.port):
