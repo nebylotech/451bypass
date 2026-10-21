@@ -142,8 +142,8 @@ if (-not $SkipService) {
     Write-Host ""
     Write-Host "[*] Registering background sync task in Windows Task Scheduler..." -ForegroundColor Yellow
     $TaskRunner = Join-Path $InstallDir "451b.cmd"
-    schtasks /delete /tn "51-BYPASS-Sync" /f 2>$null | Out-Null
-    schtasks /create /tn "451bypass-Sync" /tr "cmd.exe /c \"\"$TaskRunner\"\" service run-once" /sc daily /st 04:00 /f 2>$null | Out-Null
+    cmd.exe /c "schtasks /delete /tn 51-BYPASS-Sync /f >nul 2>&1"
+    cmd.exe /c "schtasks /create /tn 451bypass-Sync /tr `"cmd.exe /c `\`"`"$TaskRunner`\`"`" service run-once`" /sc daily /st 04:00 /f >nul 2>&1"
     Write-Host "[+] Background sync task '451bypass-Sync' registered successfully (daily at 04:00)." -ForegroundColor Green
 }
 

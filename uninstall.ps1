@@ -57,8 +57,8 @@ if ($AccountId -and $ApiToken -and $WorkerName) {
 
 Write-Host ""
 Write-Host "[*] Removing Windows background tasks..." -ForegroundColor Yellow
-schtasks /delete /tn "451bypass-Sync" /f 2>&1 | Out-Null
-schtasks /delete /tn "51-BYPASS-Sync" /f 2>&1 | Out-Null
+cmd.exe /c "schtasks /delete /tn 451bypass-Sync /f >nul 2>&1"
+cmd.exe /c "schtasks /delete /tn 51-BYPASS-Sync /f >nul 2>&1"
 Write-Host "[+] Windows Scheduled Tasks removed." -ForegroundColor Green
 
 Write-Host ""
