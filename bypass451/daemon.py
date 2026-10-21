@@ -154,6 +154,8 @@ def get_daemon_status(port: int = DEFAULT_PROXY_PORT) -> Tuple[str, dict]:
 def main():
     if len(sys.argv) > 1 and sys.argv[1] == "run":
         PRIMARY_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+        if is_proxy_running():
+            sys.exit(0)
         import traceback
         try:
             PID_FILE.write_text(str(os.getpid()), encoding="utf-8")
@@ -167,7 +169,8 @@ def main():
             with open(DAEMON_LOG, "a", encoding="utf-8") as f:
                 f.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Daemon stopped.\n")
             try:
-                PID_FILE.unlink(missing_ok=True)
+                if PID_FILE.exists() and PID_FILE.read_text(encoding="utf-8").strip() == str(os.getpid()):
+                    PID_FILE.unlink(missing_ok=True)
             except Exception:
                 pass
     elif len(sys.argv) > 1 and sys.argv[1] == "start":

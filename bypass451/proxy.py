@@ -262,7 +262,13 @@ class LocalProxy:
         writer.close()
 
     async def start(self):
-        self.server = await asyncio.start_server(self.handle_client, "127.0.0.1", self.port)
+        try:
+            self.server = await asyncio.start_server(self.handle_client, "127.0.0.1", self.port)
+        except OSError as e:
+            if getattr(e, "winerror", None) == 10048 or "already in use" in str(e).lower():
+                if is_proxy_running(self.port):
+                    return
+            raise
         async with self.server:
             await self.server.serve_forever()
 
