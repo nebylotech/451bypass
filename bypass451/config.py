@@ -8,7 +8,7 @@ from typing import Dict, List, Optional, Any
 
 SCHEMA_VERSION = 2
 
-PRIMARY_CONFIG_DIR = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local")) / "51-bypass"
+PRIMARY_CONFIG_DIR = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local")) / "451bypass"
 PRIMARY_CONFIG_PATH = PRIMARY_CONFIG_DIR / "config.json"
 BACKUP_CONFIG_PATH = PRIMARY_CONFIG_DIR / "config.json.bak"
 
@@ -20,12 +20,15 @@ USER_DOMAINS_PATH = CUSTOM_DOMAINS_PATH
 LEGACY_USER_DOMAINS_PATH = PRIMARY_CONFIG_DIR / "user_domains.txt"
 LEGACY_CORE_DOMAINS_PATH = PRIMARY_CONFIG_DIR / "core_domains.json"
 
-DOT_CONFIG_DIR = Path.home() / ".51-bypass"
+LEGACY_51_DIR = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local")) / "51-bypass"
+DOT_CONFIG_DIR = Path.home() / ".451bypass"
 DOT_CONFIG_PATH = DOT_CONFIG_DIR / "config.json"
+LEGACY_DOT_CONFIG_DIR = Path.home() / ".51-bypass"
+LEGACY_DOT_CONFIG_PATH = LEGACY_DOT_CONFIG_DIR / "config.json"
 LEGACY_CONFIG_DIR = Path.home() / ".cloudflare-dns"
 LEGACY_CONFIG_PATH = LEGACY_CONFIG_DIR / "config.json"
 
-DEFAULT_REMOTE_DOMAINS_URL = "https://raw.githubusercontent.com/51-bypass/domains/main/domains/core.txt"
+DEFAULT_REMOTE_DOMAINS_URL = "https://raw.githubusercontent.com/451bypass/domains/main/domains/core.txt"
 
 @dataclass
 class AppConfig:
@@ -49,8 +52,12 @@ def get_config_dir() -> Path:
 
 def migrate_external_config() -> Optional[AppConfig]:
     source_path = None
-    if DOT_CONFIG_PATH.exists():
+    if (LEGACY_51_DIR / "config.json").exists():
+        source_path = LEGACY_51_DIR / "config.json"
+    elif DOT_CONFIG_PATH.exists():
         source_path = DOT_CONFIG_PATH
+    elif LEGACY_DOT_CONFIG_PATH.exists():
+        source_path = LEGACY_DOT_CONFIG_PATH
     elif LEGACY_CONFIG_PATH.exists():
         source_path = LEGACY_CONFIG_PATH
 
@@ -68,6 +75,17 @@ def migrate_external_config() -> Optional[AppConfig]:
         cfg.subdomain = data.get("subdomain", data.get("Subdomain", ""))
         cfg.default_domain = data.get("default_domain", data.get("DefaultDomain", ""))
 
+        if (LEGACY_51_DIR / "domains" / "custom.txt").exists() and not CUSTOM_DOMAINS_PATH.exists():
+            CUSTOM_DOMAINS_PATH.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(LEGACY_51_DIR / "domains" / "custom.txt", CUSTOM_DOMAINS_PATH)
+        elif (LEGACY_51_DIR / "user_domains.txt").exists() and not CUSTOM_DOMAINS_PATH.exists():
+            CUSTOM_DOMAINS_PATH.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(LEGACY_51_DIR / "user_domains.txt", CUSTOM_DOMAINS_PATH)
+
+        if (LEGACY_51_DIR / "domains" / "core.txt").exists() and not CORE_DOMAINS_PATH.exists():
+            CORE_DOMAINS_PATH.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(LEGACY_51_DIR / "domains" / "core.txt", CORE_DOMAINS_PATH)
+
         legacy_domains = data.get("domains", data.get("Domains", []))
         if legacy_domains and not CUSTOM_DOMAINS_PATH.exists():
             user_lines = [d.lower().strip() for d in legacy_domains if d.strip()]
@@ -84,6 +102,12 @@ def migrate_external_config() -> Optional[AppConfig]:
 
 def load_config() -> AppConfig:
     get_config_dir()
+
+    if LEGACY_51_DIR.exists() and not PRIMARY_CONFIG_PATH.exists():
+        migrated = migrate_external_config()
+        if migrated:
+            save_config(migrated)
+            return migrated
 
     if LEGACY_USER_DOMAINS_PATH.exists() and not CUSTOM_DOMAINS_PATH.exists():
         try:

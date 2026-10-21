@@ -165,7 +165,7 @@ def fetch_worker_core_domains(cfg: AppConfig, timeout_sec: float = 4.0) -> List[
     if cfg.worker_name and cfg.subdomain:
         core_url = f"https://{cfg.worker_name}.{cfg.subdomain}.workers.dev/core-domains"
         try:
-            req = urllib.request.Request(core_url, headers={"User-Agent": "51-BYPASS/1.0"})
+            req = urllib.request.Request(core_url, headers={"User-Agent": "451bypass/1.0"})
             with urllib.request.urlopen(req, timeout=timeout_sec) as resp:
                 if resp.status == 200:
                     raw = resp.read().decode("utf-8")
@@ -181,7 +181,7 @@ def fetch_worker_core_domains(cfg: AppConfig, timeout_sec: float = 4.0) -> List[
 
         health_url = f"https://{cfg.worker_name}.{cfg.subdomain}.workers.dev/health"
         try:
-            req = urllib.request.Request(health_url, headers={"User-Agent": "51-BYPASS/1.0"})
+            req = urllib.request.Request(health_url, headers={"User-Agent": "451bypass/1.0"})
             with urllib.request.urlopen(req, timeout=timeout_sec) as resp:
                 if resp.status == 200:
                     raw = resp.read().decode("utf-8")
@@ -317,7 +317,7 @@ def update_core_domains_from_remote(cfg: AppConfig, timeout_sec: float = 8.0) ->
     if not url:
         return False, "Remote domain repository URL is not configured", 0
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": "51-BYPASS/1.0"})
+        req = urllib.request.Request(url, headers={"User-Agent": "451bypass/1.0"})
         with urllib.request.urlopen(req, timeout=timeout_sec) as resp:
             text = resp.read().decode("utf-8")
         parsed = []

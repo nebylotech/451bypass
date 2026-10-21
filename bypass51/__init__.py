@@ -1,3 +1,5 @@
-__version__ = "1.0.0"
-__product_name__ = "51-BYPASS"
-__command_name__ = "51b"
+import sys
+import bypass451
+for attr in dir(bypass451):
+    globals()[attr] = getattr(bypass451, attr)
+sys.modules["bypass51"] = bypass451

@@ -1,7 +1,7 @@
 import unittest
-from bypass51.config import AppConfig
-from bypass51.utils import normalize_domain, is_valid_domain
-from bypass51.lists import (
+from bypass451.config import AppConfig
+from bypass451.utils import normalize_domain, is_valid_domain
+from bypass451.lists import (
     load_core_domains,
     load_custom_domains,
     save_custom_domains,

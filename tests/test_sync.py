@@ -1,5 +1,5 @@
 import unittest
-from bypass51.sync import generate_worker_script
+from bypass451.sync import generate_worker_script
 
 class TestSync(unittest.TestCase):
     def test_worker_script_generation(self):

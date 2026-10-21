@@ -32,7 +32,7 @@ def clear_screen() -> None:
 def menu_check_service(cfg: AppConfig, pause: bool = True) -> None:
     clear_screen()
     print(f"{Colors.BOLD}==============================================================={Colors.RESET}")
-    print(f"               51-BYPASS -- Service Status Check               ")
+    print(f"               451bypass -- Service Status Check               ")
     print(f"{Colors.BOLD}==============================================================={Colors.RESET}\n")
     
     t0 = time.perf_counter()
@@ -83,7 +83,7 @@ def menu_check_service(cfg: AppConfig, pause: bool = True) -> None:
 def menu_test_domains(cfg: AppConfig, pause: bool = True) -> None:
     clear_screen()
     print(f"{Colors.BOLD}==============================================================={Colors.RESET}")
-    print(f"              51-BYPASS -- Test Domain Bypass                  ")
+    print(f"              451bypass -- Test Domain Bypass                  ")
     print(f"{Colors.BOLD}==============================================================={Colors.RESET}\n")
 
     active_domains = get_active_domains(cfg)
@@ -108,7 +108,7 @@ def menu_test_domains(cfg: AppConfig, pause: bool = True) -> None:
 def menu_update_domains(cfg: AppConfig) -> None:
     clear_screen()
     print(f"{Colors.BOLD}==============================================================={Colors.RESET}")
-    print(f"              51-BYPASS -- Update Core Domains                 ")
+    print(f"              451bypass -- Update Core Domains                 ")
     print(f"{Colors.BOLD}==============================================================={Colors.RESET}\n")
 
     print(f"Remote repository URL:\n  {colorize(cfg.remote_domains_url, Colors.CYAN)}\n")
@@ -134,7 +134,7 @@ def menu_update_domains(cfg: AppConfig) -> None:
 def menu_diagnostics(cfg: AppConfig) -> None:
     clear_screen()
     print(f"{Colors.BOLD}==============================================================={Colors.RESET}")
-    print(f"              51-BYPASS -- System Diagnostics                  ")
+    print(f"              451bypass -- System Diagnostics                  ")
     print(f"{Colors.BOLD}==============================================================={Colors.RESET}")
     run_diagnostics(cfg)
     print()
@@ -157,7 +157,7 @@ def main_menu(cfg: AppConfig) -> None:
         total_cnt = len(get_active_domains(cfg))
 
         print(f"{Colors.BOLD}==============================================================={Colors.RESET}")
-        print(f"     51-BYPASS v{__version__} -- AI Gateway & Regional Restriction Bypass")
+        print(f"     451bypass v{__version__} -- AI Gateway & Regional Restriction Bypass")
         print(f"{Colors.BOLD}==============================================================={Colors.RESET}")
         print(f"  Active Domains: {colorize(str(total_cnt), Colors.GREEN)} ({core_cnt} core, {user_cnt} custom)")
         print(f"  Gateway URL:    {colorize(f'https://{cfg.worker_name}.{cfg.subdomain}.workers.dev' if cfg.subdomain else 'Not configured', Colors.CYAN)}")
@@ -186,5 +186,5 @@ def main_menu(cfg: AppConfig) -> None:
             menu_diagnostics(cfg)
         elif choice == "0":
             clear_screen()
-            print("Exiting 51-BYPASS.")
+            print("Exiting 451bypass.")
             sys.exit(0)

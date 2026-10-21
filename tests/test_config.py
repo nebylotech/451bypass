@@ -1,7 +1,7 @@
 import unittest
 import tempfile
 from pathlib import Path
-from bypass51.config import AppConfig, save_config, load_config, SCHEMA_VERSION
+from bypass451.config import AppConfig, save_config, load_config, SCHEMA_VERSION
 
 class TestConfig(unittest.TestCase):
     def setUp(self):

@@ -3,14 +3,14 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "51-bypass"
+name = "451bypass"
 version = "1.0.0"
 description = "Zero-Cost Regional Restriction Bypass (HTTP 451/403) and AI Gateway for NVIDIA, OpenAI, xAI and custom endpoints."
 readme = "README.md"
 requires-python = ">=3.8"
 license = { text = "MIT" }
 authors = [
-    { name = "51-BYPASS Team" }
+    { name = "451bypass Team" }
 ]
 keywords = ["nvidia", "http-451", "bypass", "cloudflare-worker", "ai-gateway", "openai", "grok"]
 classifiers = [
@@ -21,7 +21,9 @@ classifiers = [
 ]
 
 [project.scripts]
-51b = "bypass51.cli:main"
+451b = "bypass451.cli:main"
+451bypass = "bypass451.cli:main"
+51b = "bypass451.cli:main"
 
 [tool.setuptools.packages.find]
-include = ["bypass51*"]
+include = ["bypass451*", "bypass51*"]

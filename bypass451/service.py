@@ -9,7 +9,8 @@ from .lists import reconcile_custom_domains
 from .cloudflare import check_worker_live_health
 from .utils import success, info, warn, error
 
-TASK_NAME = "51-BYPASS-Sync"
+TASK_NAME = "451bypass-Sync"
+LEGACY_TASK_NAME = "51-BYPASS-Sync"
 LOG_FILE = PRIMARY_CONFIG_DIR / "service.log"
 
 def log_service_message(msg: str) -> None:
@@ -48,9 +49,13 @@ def install_task() -> Tuple[bool, str]:
     pythonw_candidate = python_dir / "pythonw.exe"
     runner_exe = str(pythonw_candidate if pythonw_candidate.exists() else sys.executable)
 
-    installed_script = PRIMARY_CONFIG_DIR / "51b.py"
+    installed_script = PRIMARY_CONFIG_DIR / "451b.py"
     if not installed_script.exists():
-        installed_script = Path(__file__).resolve().parent.parent / "51b.py"
+        installed_script = PRIMARY_CONFIG_DIR / "51b.py"
+    if not installed_script.exists():
+        installed_script = Path(__file__).resolve().parent.parent / "451b.py"
+
+    subprocess.run(f'schtasks /delete /tn "{LEGACY_TASK_NAME}" /f', shell=True, capture_output=True, text=True)
 
     cmd = (
         f'schtasks /create /tn "{TASK_NAME}" '
@@ -70,6 +75,7 @@ def uninstall_task() -> Tuple[bool, str]:
     if sys.platform != "win32":
         return False, "Not running on Windows."
 
+    subprocess.run(f'schtasks /delete /tn "{LEGACY_TASK_NAME}" /f', shell=True, capture_output=True, text=True)
     cmd = f'schtasks /delete /tn "{TASK_NAME}" /f'
     try:
         res = subprocess.run(cmd, shell=True, capture_output=True, text=True)
@@ -92,6 +98,11 @@ def get_task_status() -> Tuple[str, str]:
                 if "Status:" in line or "Состояние:" in line:
                     status_line = line.split(":", 1)[1].strip()
             return "INSTALLED", status_line
+        
+        legacy_res = subprocess.run(f'schtasks /query /tn "{LEGACY_TASK_NAME}" /fo LIST', shell=True, capture_output=True, text=True)
+        if legacy_res.returncode == 0:
+            return "INSTALLED", "Legacy task active"
+
         return "NOT_INSTALLED", "Task not registered in Windows Task Scheduler"
     except Exception as e:
         return "ERROR", str(e)

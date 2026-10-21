@@ -88,7 +88,7 @@ def perform_check(
         url = f"https://{domain}{path}"
         
     headers = {
-        "User-Agent": "51-BYPASS/1.0",
+        "User-Agent": "451bypass/1.0",
         "Accept": "*/*"
     }
     if api_key:

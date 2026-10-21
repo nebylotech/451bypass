@@ -40,7 +40,7 @@ def run_diagnostics(cfg: AppConfig, save_path: Optional[Path] = None) -> List[Di
                 status="WARN",
                 latency_ms=round((time.perf_counter() - t0) * 1000, 1),
                 details="Config file present but Cloudflare credentials incomplete.",
-                action="Run '51b' and configure Cloudflare credentials."
+                action="Run '451b' and configure Cloudflare credentials."
             ))
     else:
         results.append(DiagnosticItem(
@@ -48,25 +48,25 @@ def run_diagnostics(cfg: AppConfig, save_path: Optional[Path] = None) -> List[Di
             status="FAIL",
             latency_ms=round((time.perf_counter() - t0) * 1000, 1),
             details="Configuration file not found.",
-            action="Run installer or '51b' to initialize config."
+            action="Run installer or '451b' to initialize config."
         ))
 
     t0 = time.perf_counter()
     py_ver = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
     path_env = os.environ.get("PATH", "")
-    in_path = "51-bypass" in path_env or "51b" in path_env
+    in_path = "451bypass" in path_env or "451b" in path_env or "51-bypass" in path_env or "51b" in path_env
     results.append(DiagnosticItem(
         name="Python & PATH",
         status="PASS" if in_path else "WARN",
         latency_ms=round((time.perf_counter() - t0) * 1000, 1),
         details=f"Python {py_ver} (In PATH: {'Yes' if in_path else 'No'})",
-        action="None" if in_path else "Add %LOCALAPPDATA%\\51-bypass to system PATH."
+        action="None" if in_path else "Add %LOCALAPPDATA%\\451bypass to system PATH."
     ))
 
     t0 = time.perf_counter()
     net_ok = False
     try:
-        req = urllib.request.Request("https://1.1.1.1", headers={"User-Agent": "51-BYPASS/1.0"})
+        req = urllib.request.Request("https://1.1.1.1", headers={"User-Agent": "451bypass/1.0"})
         with urllib.request.urlopen(req, timeout=4.0):
             net_ok = True
     except Exception:
@@ -140,7 +140,7 @@ def run_diagnostics(cfg: AppConfig, save_path: Optional[Path] = None) -> List[Di
             status="PASS" if healthy else "WARN",
             latency_ms=round((time.perf_counter() - t0) * 1000, 1),
             details=f"https://{cfg.worker_name}.{cfg.subdomain}.workers.dev: {h_msg}",
-            action="None" if healthy else "Run '51b sync' or redeploy worker."
+            action="None" if healthy else "Run '451b sync' or redeploy worker."
         ))
     else:
         results.append(DiagnosticItem(

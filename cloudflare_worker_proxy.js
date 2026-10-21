@@ -14,7 +14,7 @@ const FALLBACK_CORE_DOMAINS = new Set([
   "openrouter.ai"
 ]);
 const CUSTOM_DOMAINS = new Set([]);
-const REMOTE_CORE_URL = "https://raw.githubusercontent.com/51-bypass/domains/main/domains/core.txt";
+const REMOTE_CORE_URL = "https://raw.githubusercontent.com/451bypass/domains/main/domains/core.txt";
 const DEFAULT_DOMAIN = "";
 
 let cachedCoreDomains = null;
@@ -83,7 +83,7 @@ export default {
       return new Response(
         JSON.stringify({
           status: "ok",
-          gateway: "51-BYPASS AI Gateway",
+          gateway: "451bypass AI Gateway",
           default_domain: DEFAULT_DOMAIN || null,
           core_domains_count: coreDomains.size,
           custom_domains_count: CUSTOM_DOMAINS.size,
@@ -120,7 +120,7 @@ export default {
     } else {
       return new Response(
         JSON.stringify({
-          error: "Domain not specified or not allowed by 51-BYPASS AI Gateway",
+          error: "Domain not specified or not allowed by 451bypass AI Gateway",
           requested_segment: firstSegment,
           usage: `https://${url.host}/<domain>/v1/... (e.g. https://${url.host}/api.openai.com/v1/chat/completions)`,
           core_domains_count: coreDomains.size,

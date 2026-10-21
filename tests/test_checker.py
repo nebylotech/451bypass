@@ -1,5 +1,5 @@
 import unittest
-from bypass51.checker import classify_status
+from bypass451.checker import classify_status
 
 class TestChecker(unittest.TestCase):
     def test_classification_200(self):

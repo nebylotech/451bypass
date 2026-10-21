@@ -23,7 +23,7 @@ def _api_request(
     url = f"{API_BASE}{path}"
     headers = {
         "Authorization": f"Bearer {token}",
-        "User-Agent": "51-BYPASS/1.0",
+        "User-Agent": "451bypass/1.0",
         "Accept": "application/json"
     }
     if data is not None:
@@ -148,7 +148,7 @@ def deploy_worker_script(
 
 def check_worker_live_health(worker_name: str, subdomain: str, timeout: float = 8.0) -> Tuple[bool, str]:
     url = f"https://{worker_name}.{subdomain}.workers.dev/health"
-    req = urllib.request.Request(url, headers={"User-Agent": "51-BYPASS/1.0"})
+    req = urllib.request.Request(url, headers={"User-Agent": "451bypass/1.0"})
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             if resp.status == 200:
