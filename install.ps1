@@ -7,7 +7,7 @@ param(
     [switch]$NonInteractive
 )
 
-$ErrorActionPreference = "Stop"
+$ErrorActionPreference = "Continue"
 
 Write-Host "===============================================================" -ForegroundColor Cyan
 Write-Host "         451bypass v1.0 -- Automated Installer and Setup       " -ForegroundColor Cyan

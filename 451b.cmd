@@ -1,3 +1,3 @@
 @echo off
 set "PYTHONPATH=%~dp0;%PYTHONPATH%"
-python -m bypass451 %*
+"C:\Users\nebylo\AppData\Local\Programs\Python\Python312\python.exe" -m bypass451 %*
