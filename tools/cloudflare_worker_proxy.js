@@ -1,3 +1,5 @@
+import { connect } from 'cloudflare:sockets';
+
 const CUSTOM_DOMAINS = new Set([]);
 const REMOTE_CORE_URL = "https://raw.githubusercontent.com/nebylotech/451bypass/main/domains/core.txt";
 const DEFAULT_DOMAIN = "";
@@ -33,8 +35,108 @@ async function getCoreDomains(env) {
   return new Set();
 }
 
+function isDomainAllowed(host, coreDomains, customDomains) {
+  if (!host) return false;
+  host = host.toLowerCase().trim();
+  if (coreDomains.has(host) || customDomains.has(host)) return true;
+  const parts = host.split(".");
+  for (let i = 1; i < parts.length - 1; i++) {
+    const parent = parts.slice(i).join(".");
+    if (coreDomains.has(parent) || customDomains.has(parent)) return true;
+  }
+  return false;
+}
+
 export default {
   async fetch(request, env, ctx) {
+    const url = new URL(request.url);
+
+    // 1. WebSocket TCP Tunnel for HTTPS (CONNECT)
+    if (url.pathname === "/tunnel") {
+      const upgradeHeader = request.headers.get("Upgrade");
+      if (!upgradeHeader || upgradeHeader.toLowerCase() !== "websocket") {
+        return new Response("Expected Upgrade: websocket", { status: 426 });
+      }
+
+      const target = url.searchParams.get("target");
+      if (!target) {
+        return new Response("Missing target parameter", { status: 400 });
+      }
+
+      const lastColon = target.lastIndexOf(":");
+      const host = lastColon !== -1 ? target.substring(0, lastColon) : target;
+      const portStr = lastColon !== -1 ? target.substring(lastColon + 1) : "443";
+      const port = parseInt(portStr, 10) || 443;
+
+      const coreDomains = await getCoreDomains(env);
+      if (!isDomainAllowed(host, coreDomains, CUSTOM_DOMAINS)) {
+        return new Response(`Domain '${host}' not allowed by 451bypass policy`, { status: 403 });
+      }
+
+      const webSocketPair = new WebSocketPair();
+      const [client, server] = Object.values(webSocketPair);
+
+      server.accept();
+
+      let tcpSocket;
+      try {
+        tcpSocket = connect({ hostname: host, port: port });
+      } catch (err) {
+        server.close(1011, "Connect error: " + err.message);
+        return new Response(null, { status: 101, webSocket: client });
+      }
+
+      const writer = tcpSocket.writable.getWriter();
+      const reader = tcpSocket.readable.getReader();
+
+      server.addEventListener("message", async (event) => {
+        try {
+          let data;
+          if (typeof event.data === "string") {
+            data = new TextEncoder().encode(event.data);
+          } else if (event.data instanceof ArrayBuffer) {
+            data = new Uint8Array(event.data);
+          } else if (ArrayBuffer.isView(event.data)) {
+            data = new Uint8Array(event.data.buffer, event.data.byteOffset, event.data.byteLength);
+          }
+          if (data && data.byteLength > 0) {
+            await writer.write(data);
+          }
+        } catch (e) {
+          try { server.close(1011, e.message); } catch (_) {}
+          try { tcpSocket.close(); } catch (_) {}
+        }
+      });
+
+      server.addEventListener("close", () => {
+        try { writer.close(); } catch (_) {}
+        try { tcpSocket.close(); } catch (_) {}
+      });
+
+      server.addEventListener("error", () => {
+        try { tcpSocket.close(); } catch (_) {}
+      });
+
+      (async () => {
+        try {
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            if (value && value.byteLength > 0) {
+              const exactSlice = value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength);
+              server.send(exactSlice);
+            }
+          }
+        } catch (e) {
+        } finally {
+          try { server.close(1000, "Normal closure"); } catch (_) {}
+          try { tcpSocket.close(); } catch (_) {}
+        }
+      })();
+
+      return new Response(null, { status: 101, webSocket: client });
+    }
+
     if (request.method === "OPTIONS") {
       return new Response(null, {
         headers: {
@@ -46,7 +148,6 @@ export default {
       });
     }
 
-    const url = new URL(request.url);
     const coreDomains = await getCoreDomains(env);
 
     if (url.pathname === "/core-domains") {
@@ -66,7 +167,8 @@ export default {
       return new Response(
         JSON.stringify({
           status: "ok",
-          gateway: "451bypass AI Gateway",
+          gateway: "451bypass AI Gateway & Tunnel",
+          tunnel: "active",
           default_domain: DEFAULT_DOMAIN || null,
           core_domains_count: coreDomains.size,
           custom_domains_count: CUSTOM_DOMAINS.size,
@@ -74,6 +176,7 @@ export default {
           custom_domains: Array.from(CUSTOM_DOMAINS),
           core_domains: Array.from(coreDomains),
           routes: {
+            tunnel: `wss://${url.host}/tunnel?target=<host>:<port>`,
             multi_domain: `https://${url.host}/<domain>/v1/...`,
             default_domain: DEFAULT_DOMAIN ? `https://${url.host}/v1/... -> ${DEFAULT_DOMAIN}/v1/...` : "disabled (domain prefix required)"
           }

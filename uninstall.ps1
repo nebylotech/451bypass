@@ -56,10 +56,29 @@ if ($AccountId -and $ApiToken -and $WorkerName) {
 }
 
 Write-Host ""
-Write-Host "[*] Removing Windows background tasks..." -ForegroundColor Yellow
+Write-Host "[*] Stopping 451bypass daemon and disabling Windows PAC..." -ForegroundColor Yellow
+try {
+    # Delete PAC registry setting
+    $pacReg = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings"
+    Remove-ItemProperty -Path $pacReg -Name "AutoConfigURL" -ErrorAction SilentlyContinue
+    # Remove autorun
+    Remove-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" -Name "451bypass" -ErrorAction SilentlyContinue
+} catch {}
+
+# Stop any running daemon process
+$pidFile = Join-Path $InstallDir "daemon.pid"
+if (Test-Path $pidFile) {
+    try {
+        $p = Get-Content $pidFile -Raw
+        if ($p) { Stop-Process -Id ([int]$p.Trim()) -Force -ErrorAction SilentlyContinue }
+    } catch {}
+}
+
+Write-Host "[*] Removing Windows background tasks and autorun..." -ForegroundColor Yellow
+cmd.exe /c "schtasks /delete /tn 451bypass-Service /f >nul 2>&1"
 cmd.exe /c "schtasks /delete /tn 451bypass-Sync /f >nul 2>&1"
 cmd.exe /c "schtasks /delete /tn 51-BYPASS-Sync /f >nul 2>&1"
-Write-Host "[+] Windows Scheduled Tasks removed." -ForegroundColor Green
+Write-Host "[+] Windows Scheduled Tasks and Autorun removed." -ForegroundColor Green
 
 Write-Host ""
 Write-Host "[*] Removing application directories and configs..." -ForegroundColor Yellow

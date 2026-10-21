@@ -12,6 +12,8 @@ from .config import AppConfig, PRIMARY_CONFIG_PATH
 from .utils import print_table, Colors, colorize, mask_token
 from .cloudflare import verify_token, check_worker_live_health
 from .lists import get_active_domains
+from .proxy import is_proxy_running, is_system_pac_enabled, DEFAULT_PROXY_PORT
+from .daemon import get_daemon_status
 
 @dataclass
 class DiagnosticItem:
@@ -24,6 +26,7 @@ class DiagnosticItem:
 def run_diagnostics(cfg: AppConfig, save_path: Optional[Path] = None) -> List[DiagnosticItem]:
     results: List[DiagnosticItem] = []
 
+    # 1. Local Config
     t0 = time.perf_counter()
     if PRIMARY_CONFIG_PATH.exists():
         if cfg.account_id and cfg.api_token:
@@ -40,7 +43,7 @@ def run_diagnostics(cfg: AppConfig, save_path: Optional[Path] = None) -> List[Di
                 status="WARN",
                 latency_ms=round((time.perf_counter() - t0) * 1000, 1),
                 details="Config file present but Cloudflare credentials incomplete.",
-                action="Run '451b' and configure Cloudflare credentials."
+                action="Run '451b setup' to configure Cloudflare token."
             ))
     else:
         results.append(DiagnosticItem(
@@ -48,9 +51,10 @@ def run_diagnostics(cfg: AppConfig, save_path: Optional[Path] = None) -> List[Di
             status="FAIL",
             latency_ms=round((time.perf_counter() - t0) * 1000, 1),
             details="Configuration file not found.",
-            action="Run installer or '451b' to initialize config."
+            action="Run installer or '451b setup'."
         ))
 
+    # 2. Python & PATH
     t0 = time.perf_counter()
     py_ver = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
     path_env = os.environ.get("PATH", "")
@@ -63,6 +67,7 @@ def run_diagnostics(cfg: AppConfig, save_path: Optional[Path] = None) -> List[Di
         action="None" if in_path else "Add %LOCALAPPDATA%\\451bypass to system PATH."
     ))
 
+    # 3. Internet connectivity
     t0 = time.perf_counter()
     net_ok = False
     try:
@@ -79,8 +84,10 @@ def run_diagnostics(cfg: AppConfig, save_path: Optional[Path] = None) -> List[Di
         action="None" if net_ok else "Check local network or proxy connection."
     ))
 
+    # 4. DNS Resolution
     t0 = time.perf_counter()
     dns_ok = False
+    ip = ""
     try:
         ip = socket.gethostbyname("integrate.api.nvidia.com")
         dns_ok = bool(ip)
@@ -94,44 +101,47 @@ def run_diagnostics(cfg: AppConfig, save_path: Optional[Path] = None) -> List[Di
         action="None" if dns_ok else "Check local DNS resolver settings."
     ))
 
+    # 5. TLS Handshake
     t0 = time.perf_counter()
     tls_ok = False
-    tls_msg = ""
+    tls_ver = ""
     try:
         ctx = ssl.create_default_context()
         with socket.create_connection(("api.cloudflare.com", 443), timeout=4.0) as sock:
             with ctx.wrap_socket(sock, server_hostname="api.cloudflare.com") as ssock:
-                tls_msg = ssock.version()
+                tls_ver = ssock.version()
                 tls_ok = True
     except Exception as e:
-        tls_msg = str(e)
+        tls_ver = str(e)
     results.append(DiagnosticItem(
         name="TLS Handshake",
         status="PASS" if tls_ok else "FAIL",
         latency_ms=round((time.perf_counter() - t0) * 1000, 1),
-        details=f"Negotiated {tls_msg}" if tls_ok else f"TLS failure: {tls_msg}",
-        action="None" if tls_ok else "Check Windows CA certificate store."
+        details=f"Negotiated {tls_ver}" if tls_ok else f"TLS Handshake failed: {tls_ver}",
+        action="None" if tls_ok else "Verify system SSL/TLS root certificates."
     ))
 
+    # 6. Cloudflare API Token
     t0 = time.perf_counter()
     if cfg.api_token:
-        valid, status_msg = verify_token(cfg.api_token)
+        valid, msg = verify_token(cfg.api_token)
         results.append(DiagnosticItem(
             name="Cloudflare API",
             status="PASS" if valid else "FAIL",
             latency_ms=round((time.perf_counter() - t0) * 1000, 1),
-            details=f"Token valid: {status_msg}" if valid else f"Token invalid: {status_msg}",
-            action="None" if valid else "Re-issue Cloudflare API Token with Edit Workers permission."
+            details=f"Token valid: {msg}" if valid else f"Invalid token: {msg}",
+            action="None" if valid else "Run '451b setup' to reconnect token."
         ))
     else:
         results.append(DiagnosticItem(
             name="Cloudflare API",
-            status="SKIP",
+            status="WARN",
             latency_ms=0.0,
             details="Token not configured",
-            action="Set API token in config."
+            action="Run '451b setup' to connect Cloudflare."
         ))
 
+    # 7. Worker Health
     t0 = time.perf_counter()
     if cfg.subdomain and cfg.worker_name:
         healthy, h_msg = check_worker_live_health(cfg.worker_name, cfg.subdomain)
@@ -151,16 +161,57 @@ def run_diagnostics(cfg: AppConfig, save_path: Optional[Path] = None) -> List[Di
             action="Configure worker settings."
         ))
 
+    # 8. Local Daemon Process
     t0 = time.perf_counter()
-    active_count = len(get_active_domains(cfg))
-    sync_ok = (cfg.last_sync_status == "OK" and cfg.last_sync_domain_count == active_count)
+    d_state, d_info = get_daemon_status()
+    proxy_up = d_info.get("proxy_running", False)
     results.append(DiagnosticItem(
-        name="Domain Sync",
-        status="PASS" if sync_ok else "WARN",
+        name="Local Daemon",
+        status="PASS" if proxy_up else "WARN",
         latency_ms=round((time.perf_counter() - t0) * 1000, 1),
-        details=f"Status: {cfg.last_sync_status} ({active_count} active domains)",
-        action="None" if sync_ok else "Synchronize domains to Cloudflare."
+        details=f"Listening on 127.0.0.1:{DEFAULT_PROXY_PORT} (PID: {d_info.get('pid')})" if proxy_up else "Not running",
+        action="None" if proxy_up else "Run '451b on' or select [1] in menu."
     ))
+
+    # 9. Windows PAC (System Bypass)
+    t0 = time.perf_counter()
+    pac_ok = is_system_pac_enabled()
+    results.append(DiagnosticItem(
+        name="Windows PAC",
+        status="PASS" if pac_ok else "WARN",
+        latency_ms=round((time.perf_counter() - t0) * 1000, 1),
+        details=f"Configured (http://127.0.0.1:{DEFAULT_PROXY_PORT}/proxy.pac)" if pac_ok else "Disabled in Windows Settings",
+        action="None" if pac_ok else "Run '451b on' to activate system bypass."
+    ))
+
+    # 10. Live Tunnel Probe (if daemon running)
+    if proxy_up:
+        t0 = time.perf_counter()
+        tunnel_ok = False
+        t_msg = ""
+        import subprocess
+        try:
+            cmd = ["curl.exe", "-s", "-i", "-x", f"http://127.0.0.1:{DEFAULT_PROXY_PORT}", "https://integrate.api.nvidia.com/v1/models"]
+            res = subprocess.run(cmd, capture_output=True, text=True, errors="replace", timeout=6.0)
+            if "200 OK" in res.stdout or "401" in res.stdout:
+                tunnel_ok = True
+                t_msg = "200 OK — NVIDIA NIM reachable via tunnel"
+            elif "Connection Established" in res.stdout:
+                tunnel_ok = True
+                t_msg = "Connected via Cloudflare WebSocket Tunnel"
+            else:
+                first_line = res.stdout.strip().splitlines()[0] if res.stdout.strip() else res.stderr.strip()
+                t_msg = first_line or "No response"
+        except Exception as e:
+            t_msg = str(e)
+
+        results.append(DiagnosticItem(
+            name="Tunnel Probe",
+            status="PASS" if tunnel_ok else "WARN",
+            latency_ms=round((time.perf_counter() - t0) * 1000, 1),
+            details=f"nvidia NIM via Tunnel: {t_msg}",
+            action="None" if tunnel_ok else "Check Cloudflare Worker logs and network."
+        ))
 
     table_rows = []
     for item in results:

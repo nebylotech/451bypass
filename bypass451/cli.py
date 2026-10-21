@@ -20,6 +20,8 @@ from .sync import sync_to_cloudflare, export_worker_script
 from .diagnostics import run_diagnostics
 from .importer import run_interactive_import, parse_domains_from_text
 from .service import install_task, uninstall_task, get_task_status, run_service_cycle
+from .daemon import start_daemon, stop_daemon, get_daemon_status
+from .proxy import is_system_pac_enabled, enable_system_pac, disable_system_pac, run_server
 from .menu import main_menu, menu_check_service, menu_test_domains, menu_setup
 
 def build_parser() -> argparse.ArgumentParser:
@@ -30,6 +32,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("-v", "--version", action="version", version=f"{__product_name__} v{__version__}")
     
     subparsers = parser.add_subparsers(dest="subcommand", help="Available subcommands")
+
+    # Toggle commands
+    subparsers.add_parser("on", help="Enable system bypass (start daemon and enable PAC)")
+    subparsers.add_parser("start", help="Alias for 'on'")
+    subparsers.add_parser("off", help="Disable system bypass (stop daemon and disable PAC)")
+    subparsers.add_parser("stop", help="Alias for 'off'")
 
     test_parser = subparsers.add_parser("test", help="Test connectivity and 451/403 bypass for domain")
     test_parser.add_argument("domain", nargs="?", default="integrate.api.nvidia.com", help="Domain to test")
@@ -60,6 +68,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     srv_parser = subparsers.add_parser("service", help="Manage Windows background synchronization service")
     srv_parser.add_argument("action", choices=["install", "uninstall", "status", "run-once"], help="Service action")
+
+    daemon_parser = subparsers.add_parser("daemon", help="Manage local proxy daemon")
+    daemon_parser.add_argument("action", choices=["run", "start", "stop", "status"], help="Daemon action")
 
     subparsers.add_parser("uninstall", help="Uninstall 451bypass, delete worker, and clean system")
     subparsers.add_parser("version", help="Print version information")
@@ -92,7 +103,39 @@ def main() -> None:
     args = parser.parse_args()
 
     try:
-        if args.subcommand == "test":
+        if args.subcommand in ("on", "start"):
+            print(info("Starting 451bypass local daemon and enabling system PAC..."))
+            ok, msg = start_daemon(enable_pac=True)
+            if ok:
+                print(success("451bypass is now ACTIVE!"))
+                print(info("477+ blocked domains routed through Cloudflare Gateway."))
+                print(info("All other traffic flows directly at 100% provider speed."))
+            else:
+                print(error(f"Failed to enable bypass: {msg}"))
+                sys.exit(1)
+
+        elif args.subcommand in ("off", "stop"):
+            print(info("Stopping 451bypass daemon and disabling system PAC..."))
+            ok, msg = stop_daemon()
+            print(warn("451bypass is now INACTIVE. All traffic routed directly."))
+
+        elif args.subcommand == "daemon":
+            if args.action == "run":
+                run_server()
+            elif args.action == "start":
+                ok, msg = start_daemon(enable_pac=True)
+                print(success(msg) if ok else error(msg))
+            elif args.action == "stop":
+                ok, msg = stop_daemon()
+                print(success(msg) if ok else error(msg))
+            elif args.action == "status":
+                state, d_info = get_daemon_status()
+                print(f"Daemon State:  {state}")
+                print(f"Proxy Running: {d_info.get('proxy_running')}")
+                print(f"PAC Enabled:   {d_info.get('pac_enabled')}")
+                print(f"Port:          {d_info.get('port')}")
+
+        elif args.subcommand == "test":
             domain = normalize_domain(args.domain)
             print(info(f"Testing endpoint '{domain}' via Gateway..."))
             res = perform_check(domain, cfg, use_gateway=True, api_key=args.api_key)

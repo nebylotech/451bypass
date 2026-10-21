@@ -1,6 +1,7 @@
 import os
 import sys
 import time
+import webbrowser
 from . import __version__
 from .config import AppConfig, load_config, save_config, CUSTOM_DOMAINS_PATH, CORE_DOMAINS_PATH
 from .utils import print_table, Colors, colorize, success, info, warn, error, is_valid_domain, normalize_domain, mask_token
@@ -15,10 +16,11 @@ from .lists import (
     check_custom_file_changed,
     get_custom_domains_file
 )
-import webbrowser
 from .checker import perform_check
 from .cloudflare import verify_token, check_worker_live_health, list_accounts, get_subdomain
-from .service import get_task_status
+from .service import get_task_status, install_task, uninstall_task
+from .daemon import start_daemon, stop_daemon, get_daemon_status
+from .proxy import is_system_pac_enabled, enable_system_pac, disable_system_pac
 from .sync import sync_to_cloudflare
 from .importer import run_interactive_import
 from .diagnostics import run_diagnostics
@@ -29,6 +31,29 @@ def clear_screen() -> None:
     else:
         sys.stdout.write("\033[2J\033[H")
         sys.stdout.flush()
+
+def toggle_bypass(cfg: AppConfig) -> None:
+    clear_screen()
+    d_state, info_data = get_daemon_status()
+    pac_on = is_system_pac_enabled()
+
+    if pac_on or d_state == "ACTIVE":
+        print(info("Выключение системного обхода..."))
+        stop_daemon()
+        print(warn("Системный обход Windows ВЫКЛЮЧЕН."))
+        print(info("Трафик всех сайтов теперь идёт напрямую."))
+    else:
+        print(info("Включение системного обхода..."))
+        ok, msg = start_daemon(enable_pac=True)
+        if ok:
+            print(success("Системный обход Windows ВКЛЮЧЕН!"))
+            print(info("477+ заблокированных сайтов направляются в обход."))
+            print(info("Банки, Госуслуги и игры работают напрямую."))
+        else:
+            print(error(f"Не удалось запустить обход: {msg}"))
+
+    print()
+    input("Нажмите ENTER, чтобы вернуться в меню...")
 
 def menu_check_service(cfg: AppConfig, pause: bool = True) -> None:
     clear_screen()
@@ -53,6 +78,8 @@ def menu_check_service(cfg: AppConfig, pause: bool = True) -> None:
         token_status = f"Valid ({t_msg})" if token_valid else f"Invalid ({t_msg})"
 
     srv_state, srv_detail = get_task_status()
+    d_state, d_info = get_daemon_status()
+    pac_on = is_system_pac_enabled()
     
     active_domains = get_active_domains(cfg)
     sync_state = f"{cfg.last_sync_status} ({len(active_domains)} active domains)"
@@ -63,48 +90,59 @@ def menu_check_service(cfg: AppConfig, pause: bool = True) -> None:
 
     w_color = Colors.GREEN if worker_online else Colors.RED
     t_color = Colors.GREEN if token_valid else Colors.RED
-    s_color = Colors.GREEN if srv_state == "INSTALLED" else Colors.YELLOW
+    d_color = Colors.GREEN if d_state == "ACTIVE" else Colors.YELLOW
+    pac_color = Colors.GREEN if pac_on else Colors.YELLOW
 
-    print(f"  Gateway Base URL:    {colorize(gateway_url, Colors.CYAN)}")
-    print(f"  Worker Health:       {colorize(worker_detail, w_color)}")
-    print(f"  Cloudflare API:      {colorize(token_status, t_color)}")
-    print(f"  Windows Service:     {colorize(f'{srv_state} ({srv_detail})', s_color)}")
-    print(f"  Domain Sync:         {colorize(sync_state, Colors.WHITE)}")
+    pac_str = "ВКЛЮЧЕН (127.0.0.1:10451/proxy.pac)" if pac_on else "ВЫКЛЮЧЕН"
+    daemon_str = f"Работает (PID: {d_info.get('pid')})" if d_state == "ACTIVE" else "Остановлен"
+
+    print(f"  Системный обход Windows: {colorize(pac_str, pac_color)}")
+    print(f"  Локальный демон:         {colorize(daemon_str, d_color)}")
+    print(f"  Шлюз Cloudflare:         {colorize(worker_detail, w_color)}")
+    print(f"  Адрес шлюза:             {colorize(gateway_url, Colors.CYAN)}")
+    print(f"  Cloudflare API:          {colorize(token_status, t_color)}")
+    print(f"  Служба автозапуска:      {colorize(f'{srv_state} ({srv_detail})', Colors.WHITE)}")
+    print(f"  База доменов:            {colorize(sync_state, Colors.WHITE)}")
     print()
 
-    if worker_online and token_valid:
-        print(success("Service is fully operational and accepting traffic."))
+    if worker_online and token_valid and pac_on:
+        print(success("Все системы работают идеально! Обход активен."))
+    elif not pac_on:
+        print(warn("Внимание: системный обход выключен. Нажмите [1] в главном меню для включения."))
     else:
-        print(warn("Service requires attention. Run Diagnostics [5] for full inspection."))
+        print(warn("Служба требует внимания. Запустите Диагностику [5] для проверки."))
 
     print()
     if pause:
-        input("Press ENTER to return to menu...")
+        input("Нажмите ENTER, чтобы вернуться в меню...")
 
 def menu_test_domains(cfg: AppConfig, pause: bool = True) -> None:
     clear_screen()
     print(f"{Colors.BOLD}==============================================================={Colors.RESET}")
-    print(f"              451bypass -- Test Domain Bypass                  ")
+    print(f"              451bypass -- Тестирование сайтов                 ")
     print(f"{Colors.BOLD}==============================================================={Colors.RESET}\n")
 
-    active_domains = get_active_domains(cfg)
-    if not active_domains:
-        print(warn("No active domains to test."))
-        if pause:
-            input("\nPress ENTER to return to menu...")
-        return
+    test_list = [
+        "integrate.api.nvidia.com",
+        "chatgpt.com",
+        "claude.ai",
+        "notion.so",
+        "build.nvidia.com",
+        "api.perplexity.ai",
+        "habr.com"
+    ]
 
-    print(info(f"Testing {len(active_domains)} domains via Gateway..."))
+    print(info(f"Проверка ключевых сервисов через шлюз..."))
     table_rows = []
-    for d in active_domains:
-        res = perform_check(d, cfg, use_gateway=True, timeout_sec=5.0)
+    for d in test_list:
+        res = perform_check(d, cfg, use_gateway=True, timeout_sec=6.0)
         table_rows.append([d, res.status_label, f"{res.latency_ms}ms", res.details])
 
     print()
-    print_table(["Domain / Endpoint", "Status", "Latency", "Bypass Diagnostics"], table_rows)
+    print_table(["Домен / Сервис", "Статус", "Задержка", "Результат"], table_rows)
     print()
     if pause:
-        input("Press ENTER to return to menu...")
+        input("Нажмите ENTER, чтобы вернуться в меню...")
 
 def menu_update_domains(cfg: AppConfig) -> None:
     clear_screen()
@@ -208,39 +246,48 @@ def main_menu(cfg: AppConfig) -> None:
         user_cnt = len(load_custom_domains())
         total_cnt = len(get_active_domains(cfg))
 
+        pac_on = is_system_pac_enabled()
+        d_state, _ = get_daemon_status()
+        is_active = pac_on and d_state == "ACTIVE"
+
+        status_text = "ВКЛЮЧЕН (Работает)" if is_active else "ВЫКЛЮЧЕН"
+        status_color = Colors.GREEN if is_active else Colors.YELLOW
+
         print(f"{Colors.BOLD}==============================================================={Colors.RESET}")
-        print(f"     451bypass v{__version__} -- AI Gateway & Regional Restriction Bypass")
+        print(f"      451bypass v{__version__} -- Умный обход блокировок (HTTP 451 / 403)     ")
         print(f"{Colors.BOLD}==============================================================={Colors.RESET}")
-        print(f"  Active Domains: {colorize(str(total_cnt), Colors.GREEN)} ({core_cnt} core, {user_cnt} custom)")
-        print(f"  Gateway URL:    {colorize(f'https://{cfg.worker_name}.{cfg.subdomain}.workers.dev' if cfg.subdomain else 'Not configured', Colors.CYAN)}")
+        print(f"  Обход Windows:          {colorize(f'[{status_text}]', status_color)}")
+        print(f"  Активных сайтов в базе: {colorize(str(total_cnt), Colors.GREEN)} ({core_cnt} базовых, {user_cnt} своих)")
+        print(f"  Шлюз Cloudflare:        {colorize(f'https://{cfg.worker_name}.{cfg.subdomain}.workers.dev' if cfg.subdomain else 'Не настроен', Colors.CYAN)}")
         if last_notice:
-            print(f"  {colorize('[Notice]', Colors.YELLOW)} {last_notice}")
+            print(f"  {colorize('[Уведомление]', Colors.YELLOW)} {last_notice}")
             last_notice = None
         print(f"{Colors.BOLD}---------------------------------------------------------------{Colors.RESET}")
-        print("  [1] Check Service     - Verify Gateway, Worker, and Task health")
-        print("  [2] Test Domains      - Probe active endpoints for 451/403 bypass")
-        print("  [3] Update Domains    - Check and pull latest domains from GitHub")
-        print("  [4] Custom Domains    - Edit personal custom.txt in Notepad (auto-sync)")
-        print("  [5] Run Diagnostics   - Full 8-point system diagnostics")
-        print("  [6] Setup / Auth      - Connect Cloudflare API Token")
-        print("  [0] Exit")
+        toggle_label = "Выключить системный обход" if is_active else "Включить системный обход"
+        print(f"  [1] {toggle_label} (ON / OFF)")
+        print("  [2] Проверить статус службы     - Verify Gateway, Worker, and Task health")
+        print("  [3] Тест доступности сайтов     - Probe active endpoints for 451/403 bypass")
+        print("  [4] Редактировать свои сайты    - Edit personal custom.txt in Notepad")
+        print("  [5] Диагностика системы         - Full 8-point system diagnostics")
+        print("  [6] Настроить токен Cloudflare  - Connect Cloudflare API Token")
+        print("  [0] Выход")
         print(f"{Colors.BOLD}==============================================================={Colors.RESET}\n")
         
-        choice = input("Select an option [0-6]: ").strip()
+        choice = input("Выберите пункт [0-6]: ").strip()
         if choice == "1":
-            menu_check_service(cfg)
+            toggle_bypass(cfg)
         elif choice == "2":
-            menu_test_domains(cfg)
+            menu_check_service(cfg)
         elif choice == "3":
-            menu_update_domains(cfg)
+            menu_test_domains(cfg)
         elif choice == "4":
             run_interactive_import(cfg)
         elif choice == "5":
             menu_diagnostics(cfg)
         elif choice == "6":
             menu_setup(cfg)
-            input("\nPress ENTER to return to menu...")
+            input("\nНажмите ENTER, чтобы вернуться в меню...")
         elif choice == "0":
             clear_screen()
-            print("Exiting 451bypass.")
+            print("451bypass закрыт.")
             sys.exit(0)

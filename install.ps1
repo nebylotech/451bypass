@@ -140,11 +140,24 @@ if ($ExistingAcc -and $ExistingTok) {
 
 if (-not $SkipService) {
     Write-Host ""
-    Write-Host "[*] Registering background sync task in Windows Task Scheduler..." -ForegroundColor Yellow
-    $TaskRunner = Join-Path $InstallDir "451b.cmd"
+    Write-Host "[*] Configuring 451bypass auto-start on user logon..." -ForegroundColor Yellow
+    
+    # 1. Register in HKCU Run (runs silently upon user logon for any user)
+    $PywPath = Join-Path (Split-Path $PythonCmd.Source) "pythonw.exe"
+    if (-not (Test-Path $PywPath)) { $PywPath = $PythonCmd.Source }
+    $RunCmd = "`"$PywPath`" -m bypass451.daemon run"
+    try {
+        Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" -Name "451bypass" -Value $RunCmd -Force
+        Write-Host "[+] Registered user logon autorun (HKCU Run)." -ForegroundColor Green
+    } catch {}
+
+    # 2. Clean up legacy scheduled tasks
+    cmd.exe /c "schtasks /delete /tn 451bypass-Sync /f >nul 2>&1"
     cmd.exe /c "schtasks /delete /tn 51-BYPASS-Sync /f >nul 2>&1"
-    cmd.exe /c "schtasks /create /tn 451bypass-Sync /tr `"cmd.exe /c `\`"`"$TaskRunner`\`"`" service run-once`" /sc daily /st 04:00 /f >nul 2>&1"
-    Write-Host "[+] Background sync task '451bypass-Sync' registered successfully (daily at 04:00)." -ForegroundColor Green
+
+    # 3. Start background daemon and activate Windows PAC immediately
+    Write-Host "[*] Starting background proxy daemon and enabling Windows PAC..." -ForegroundColor Yellow
+    & (Join-Path $InstallDir "451b.cmd") on
 }
 
 Write-Host ""
@@ -154,12 +167,16 @@ $ErrorActionPreference = "Continue"
 
 Write-Host ""
 Write-Host "===============================================================" -ForegroundColor Green
-Write-Host "        451bypass v1.0 IS FULLY INSTALLED AND READY!           " -ForegroundColor Green
+Write-Host "        451bypass v1.0 IS FULLY INSTALLED AND ACTIVE!          " -ForegroundColor Green
 Write-Host "===============================================================" -ForegroundColor Green
 Write-Host ""
-Write-Host "  You can now type '451b' in ANY terminal:" -ForegroundColor Cyan
+Write-Host "  System bypass is now ON. 477+ blocked sites route via Cloudflare." -ForegroundColor Green
+Write-Host "  Banks, games, and government services work directly at 100% speed." -ForegroundColor White
+Write-Host ""
+Write-Host "  Management commands in ANY terminal:" -ForegroundColor Cyan
 Write-Host "    451b                   - Open interactive dashboard" -ForegroundColor White
+Write-Host "    451b on / 451b off     - Toggle system bypass ON / OFF" -ForegroundColor White
+Write-Host "    451b status            - View status of daemon and worker" -ForegroundColor White
 Write-Host "    451b test              - Test 451/403 bypass for AI APIs" -ForegroundColor White
-Write-Host "    451b domains list      - View all active proxied domains" -ForegroundColor White
-Write-Host "    451b sync              - Re-sync domains with Cloudflare" -ForegroundColor White
+Write-Host "    451b import            - Edit custom domains in Notepad" -ForegroundColor White
 Write-Host ""
