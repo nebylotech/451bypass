@@ -32,6 +32,12 @@ def clear_screen() -> None:
         sys.stdout.write("\033[2J\033[H")
         sys.stdout.flush()
 
+def pause_prompt(prompt: str = "Нажмите ENTER, чтобы вернуться в меню...") -> None:
+    try:
+        input(f"\n{prompt}")
+    except KeyboardInterrupt:
+        pass
+
 def toggle_bypass(cfg: AppConfig) -> None:
     clear_screen()
     d_state, info_data = get_daemon_status()
@@ -52,8 +58,7 @@ def toggle_bypass(cfg: AppConfig) -> None:
         else:
             print(error(f"Не удалось запустить обход: {msg}"))
 
-    print()
-    input("Нажмите ENTER, чтобы вернуться в меню...")
+    pause_prompt()
 
 def menu_check_service(cfg: AppConfig, pause: bool = True) -> None:
     clear_screen()
@@ -112,37 +117,88 @@ def menu_check_service(cfg: AppConfig, pause: bool = True) -> None:
     else:
         print(warn("Служба требует внимания. Запустите Диагностику [5] для проверки."))
 
-    print()
     if pause:
-        input("Нажмите ENTER, чтобы вернуться в меню...")
+        pause_prompt()
 
-def menu_test_domains(cfg: AppConfig, pause: bool = True) -> None:
+def run_test_stream(domains: list, cfg: AppConfig, title: str = "Тестирование сайтов") -> None:
     clear_screen()
     print(f"{Colors.BOLD}==============================================================={Colors.RESET}")
-    print(f"              451bypass -- Тестирование сайтов                 ")
-    print(f"{Colors.BOLD}==============================================================={Colors.RESET}\n")
+    print(f"       451bypass -- {title} ({len(domains)} сайтов)           ")
+    print(f"{Colors.BOLD}==============================================================={Colors.RESET}")
+    print(f"  {colorize('[Подсказка]', Colors.CYAN)} Нажмите {colorize('Ctrl+C', Colors.YELLOW)}, чтобы прервать проверку в любой момент\n")
 
-    test_list = [
-        "integrate.api.nvidia.com",
-        "chatgpt.com",
-        "claude.ai",
-        "notion.so",
-        "build.nvidia.com",
-        "api.perplexity.ai",
-        "habr.com"
-    ]
-
-    print(info(f"Проверка ключевых сервисов через шлюз..."))
     table_rows = []
-    for d in test_list:
-        res = perform_check(d, cfg, use_gateway=True, timeout_sec=6.0)
-        table_rows.append([d, res.status_label, f"{res.latency_ms}ms", res.details])
+    passed = 0
+    total = len(domains)
 
-    print()
-    print_table(["Домен / Сервис", "Статус", "Задержка", "Результат"], table_rows)
-    print()
-    if pause:
-        input("Нажмите ENTER, чтобы вернуться в меню...")
+    try:
+        for idx, d in enumerate(domains, 1):
+            sys.stdout.write(f"  [{idx}/{total}] Проверка {d:<34} ... ")
+            sys.stdout.flush()
+
+            res = perform_check(d, cfg, timeout_sec=3.5)
+            table_rows.append([d, res.status_label, f"{res.latency_ms}ms", res.details])
+
+            if "OK" in res.status_label:
+                passed += 1
+
+            sys.stdout.write(f"\r  [{idx}/{total}] {d:<34} -> {res.status_label} ({res.latency_ms}ms)\n")
+            sys.stdout.flush()
+    except KeyboardInterrupt:
+        print(f"\n  {colorize('[!]', Colors.YELLOW)} Тестирование прервано пользователем (проверено {len(table_rows)} из {total}).")
+
+    print(f"\n{Colors.BOLD}---------------------------------------------------------------{Colors.RESET}")
+    print(f"  Результат: проверено {len(table_rows)} сайтов, успешно: {colorize(f'{passed}/{len(table_rows)}', Colors.GREEN if passed == len(table_rows) and passed > 0 else Colors.YELLOW)}")
+    print(f"{Colors.BOLD}==============================================================={Colors.RESET}")
+    pause_prompt()
+
+def menu_test_domains(cfg: AppConfig, pause: bool = True) -> None:
+    while True:
+        clear_screen()
+        print(f"{Colors.BOLD}==============================================================={Colors.RESET}")
+        print(f"              451bypass -- Тестирование сайтов                 ")
+        print(f"{Colors.BOLD}==============================================================={Colors.RESET}\n")
+        print("  [1] Быстрый тест ключевых сервисов (ChatGPT, Gemini, Claude, Grok, NVIDIA, Notion)")
+        print("  [2] Проверить конкретный сайт (ввести домен вручную)")
+        print("  [3] Проверить все активные сайты из базы (с возможностью прервать)")
+        print("  [0] Назад в главное меню")
+        print(f"\n{Colors.BOLD}==============================================================={Colors.RESET}\n")
+
+        try:
+            choice = input("Выберите вариант [0-3]: ").strip()
+        except KeyboardInterrupt:
+            return
+
+        if choice == "1":
+            quick_list = [
+                "integrate.api.nvidia.com",
+                "gemini.google.com",
+                "chatgpt.com",
+                "claude.ai",
+                "grok.com",
+                "notion.so",
+                "build.nvidia.com",
+                "api.perplexity.ai"
+            ]
+            run_test_stream(quick_list, cfg, title="Быстрый тест ключевых сервисов")
+        elif choice == "2":
+            clear_screen()
+            print(f"{Colors.BOLD}==============================================================={Colors.RESET}")
+            print(f"              Проверка конкретного домена                      ")
+            print(f"{Colors.BOLD}==============================================================={Colors.RESET}\n")
+            try:
+                dom = input("Введите домен (например, chatgpt.com или 0 для отмены): ").strip()
+            except KeyboardInterrupt:
+                continue
+            if not dom or dom == "0":
+                continue
+            dom = normalize_domain(dom)
+            run_test_stream([dom], cfg, title=f"Проверка {dom}")
+        elif choice == "3":
+            active = get_active_domains(cfg)
+            run_test_stream(active, cfg, title="Полный тест всех сайтов базы")
+        elif choice == "0":
+            break
 
 def menu_update_domains(cfg: AppConfig) -> None:
     clear_screen()
@@ -167,8 +223,7 @@ def menu_update_domains(cfg: AppConfig) -> None:
         user_cnt = len(load_custom_domains())
         print(info(f"Current local setup: {core_cnt} core domains, {user_cnt} custom domains."))
 
-    print()
-    input("Press ENTER to return to menu...")
+    pause_prompt()
 
 def menu_diagnostics(cfg: AppConfig) -> None:
     clear_screen()
@@ -176,8 +231,7 @@ def menu_diagnostics(cfg: AppConfig) -> None:
     print(f"              451bypass -- System Diagnostics                  ")
     print(f"{Colors.BOLD}==============================================================={Colors.RESET}")
     run_diagnostics(cfg)
-    print()
-    input("Press ENTER to return to menu...")
+    pause_prompt()
 
 def menu_setup(cfg: AppConfig) -> bool:
     clear_screen()
@@ -273,7 +327,13 @@ def main_menu(cfg: AppConfig) -> None:
         print("  [0] Выход")
         print(f"{Colors.BOLD}==============================================================={Colors.RESET}\n")
         
-        choice = input("Выберите пункт [0-6]: ").strip()
+        try:
+            choice = input("Выберите пункт [0-6]: ").strip()
+        except KeyboardInterrupt:
+            clear_screen()
+            print("451bypass закрыт.")
+            sys.exit(0)
+
         if choice == "1":
             toggle_bypass(cfg)
         elif choice == "2":
@@ -286,7 +346,7 @@ def main_menu(cfg: AppConfig) -> None:
             menu_diagnostics(cfg)
         elif choice == "6":
             menu_setup(cfg)
-            input("\nНажмите ENTER, чтобы вернуться в меню...")
+            pause_prompt()
         elif choice == "0":
             clear_screen()
             print("451bypass закрыт.")

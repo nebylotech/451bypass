@@ -137,15 +137,19 @@ def main() -> None:
 
         elif args.subcommand == "test":
             domain = normalize_domain(args.domain)
-            print(info(f"Testing endpoint '{domain}' via Gateway..."))
-            res = perform_check(domain, cfg, use_gateway=True, api_key=args.api_key)
-            print(f"Target:      {res.target}")
-            print(f"URL:         {res.url}")
-            print(f"HTTP Status: {res.status_code or 'ERROR'} {res.status_text}")
-            print(f"Latency:     {res.latency_ms} ms")
-            print(f"Class:       {res.classification}")
-            print(f"Details:     {res.details}")
-            sys.exit(0 if res.status_code in (200, 401) else 1)
+            print(info(f"Testing endpoint '{domain}'..."))
+            try:
+                res = perform_check(domain, cfg, api_key=args.api_key)
+                print(f"Target:      {res.target}")
+                print(f"URL:         {res.url}")
+                print(f"HTTP Status: {res.status_label} ({res.status_code or 'ERROR'} {res.status_text})")
+                print(f"Latency:     {res.latency_ms} ms")
+                print(f"Class:       {res.classification}")
+                print(f"Details:     {res.details}")
+                sys.exit(0 if "OK" in res.status_label else 1)
+            except KeyboardInterrupt:
+                print("\n[!] Test cancelled.")
+                sys.exit(130)
 
         elif args.subcommand in ("check-service", "status"):
             menu_check_service(cfg, pause=False)
