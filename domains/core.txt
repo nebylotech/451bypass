@@ -1,4 +1,15 @@
 integrate.api.nvidia.com
+build.nvidia.com
+api.ngc.nvidia.com
+api.openai.com
+api.anthropic.com
+api.x.ai
+api.groq.com
+api.deepseek.com
+api.mistral.ai
+api.elevenlabs.io
+api.perplexity.ai
+api.cohere.ai
 4pda.to
 4pda.ws
 habr.com
