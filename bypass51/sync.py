@@ -2,16 +2,73 @@ import json
 import datetime
 from pathlib import Path
 from typing import Tuple, List, Optional
-from .config import AppConfig, save_config
-from .lists import get_active_domains
+from .config import AppConfig, save_config, DEFAULT_REMOTE_DOMAINS_URL
+from .lists import load_custom_domains, load_core_domains
 from .cloudflare import deploy_worker_script, CloudflareAPIError, check_worker_live_health
 
-def generate_worker_script(domains: List[str], default_domain: str) -> str:
-    domains_json = json.dumps(domains)
-    default_domain_json = json.dumps(default_domain)
+FALLBACK_CORE_LIST = [
+    "api.anthropic.com",
+    "api.cohere.ai",
+    "api.deepseek.com",
+    "api.elevenlabs.io",
+    "api.groq.com",
+    "api.mistral.ai",
+    "api.ngc.nvidia.com",
+    "api.openai.com",
+    "api.perplexity.ai",
+    "api.x.ai",
+    "build.nvidia.com",
+    "integrate.api.nvidia.com",
+    "openrouter.ai"
+]
 
-    return f"""const ALLOWED_DOMAINS = new Set({domains_json});
-const DEFAULT_DOMAIN = {default_domain_json};
+def generate_worker_script(
+    custom_domains: List[str],
+    default_domain: str = "",
+    remote_core_url: str = DEFAULT_REMOTE_DOMAINS_URL
+) -> str:
+    fallback_json = json.dumps(FALLBACK_CORE_LIST)
+    custom_json = json.dumps(custom_domains)
+    default_json = json.dumps(default_domain)
+    remote_url_json = json.dumps(remote_core_url)
+
+    return f"""const FALLBACK_CORE_DOMAINS = new Set({fallback_json});
+const CUSTOM_DOMAINS = new Set({custom_json});
+const REMOTE_CORE_URL = {remote_url_json};
+const DEFAULT_DOMAIN = {default_json};
+
+let cachedCoreDomains = null;
+let lastCoreFetch = 0;
+const CORE_CACHE_TTL_MS = 3600000;
+
+async function getCoreDomains(env) {{
+  const now = Date.now();
+  if (cachedCoreDomains && (now - lastCoreFetch < CORE_CACHE_TTL_MS)) {{
+    return cachedCoreDomains;
+  }}
+  const url = (env && env.REMOTE_CORE_URL) || REMOTE_CORE_URL;
+  if (url) {{
+    try {{
+      const resp = await fetch(url, {{
+        cf: {{ cacheTtl: 3600, cacheEverything: true }}
+      }});
+      if (resp.ok) {{
+        const text = await resp.text();
+        const list = text.split("\\n")
+          .map(l => l.trim().toLowerCase())
+          .filter(l => l && !l.startsWith("#"));
+        if (list.length > 0) {{
+          cachedCoreDomains = new Set(list);
+          lastCoreFetch = now;
+          return cachedCoreDomains;
+        }}
+      }}
+    }} catch (e) {{
+    }}
+  }}
+  if (cachedCoreDomains) return cachedCoreDomains;
+  return FALLBACK_CORE_DOMAINS;
+}}
 
 export default {{
   async fetch(request, env, ctx) {{
@@ -27,17 +84,35 @@ export default {{
     }}
 
     const url = new URL(request.url);
+    const coreDomains = await getCoreDomains(env);
+
+    if (url.pathname === "/core-domains") {{
+      return new Response(Array.from(coreDomains).join("\\n") + "\\n", {{
+        headers: {{ "Content-Type": "text/plain; charset=utf-8", "Access-Control-Allow-Origin": "*" }}
+      }});
+    }}
+
+    if (url.pathname === "/custom-domains") {{
+      return new Response(Array.from(CUSTOM_DOMAINS).join("\\n") + "\\n", {{
+        headers: {{ "Content-Type": "text/plain; charset=utf-8", "Access-Control-Allow-Origin": "*" }}
+      }});
+    }}
 
     if (url.pathname === "/" || url.pathname === "/health") {{
+      const totalDomains = new Set([...coreDomains, ...CUSTOM_DOMAINS]);
       return new Response(
         JSON.stringify({{
           status: "ok",
           gateway: "51-BYPASS AI Gateway",
-          default_domain: DEFAULT_DOMAIN,
-          managed_domains: Array.from(ALLOWED_DOMAINS),
+          default_domain: DEFAULT_DOMAIN || null,
+          core_domains_count: coreDomains.size,
+          custom_domains_count: CUSTOM_DOMAINS.size,
+          total_domains_count: totalDomains.size,
+          custom_domains: Array.from(CUSTOM_DOMAINS),
+          core_domains: Array.from(coreDomains),
           routes: {{
-            drop_in_default: `https://${{url.host}}/v1/... -> ${{DEFAULT_DOMAIN}}/v1/...`,
-            multi_domain: `https://${{url.host}}/<domain>/v1/...`
+            multi_domain: `https://${{url.host}}/<domain>/v1/...`,
+            default_domain: DEFAULT_DOMAIN ? `https://${{url.host}}/v1/... -> ${{DEFAULT_DOMAIN}}/v1/...` : "disabled (domain prefix required)"
           }}
         }}, null, 2),
         {{
@@ -51,28 +126,28 @@ export default {{
 
     const cleanPath = url.pathname.replace(/^\\/+/, "");
     const slashIndex = cleanPath.indexOf("/");
-    const firstSegment = slashIndex >= 0 ? cleanPath.substring(0, slashIndex) : cleanPath;
+    const firstSegment = slashIndex >= 0 ? cleanPath.substring(0, slashIndex).toLowerCase() : cleanPath.toLowerCase();
 
     let targetDomain;
     let targetPath;
 
-    if (ALLOWED_DOMAINS.has(firstSegment)) {{
+    if (coreDomains.has(firstSegment) || CUSTOM_DOMAINS.has(firstSegment)) {{
       targetDomain = firstSegment;
       targetPath = slashIndex >= 0 ? cleanPath.substring(slashIndex) : "/";
-    }} else {{
+    }} else if (DEFAULT_DOMAIN) {{
       targetDomain = DEFAULT_DOMAIN;
       targetPath = "/" + cleanPath;
-    }}
-
-    if (!ALLOWED_DOMAINS.has(targetDomain)) {{
+    }} else {{
       return new Response(
         JSON.stringify({{
-          error: "Domain not allowed by 51-BYPASS AI Gateway",
-          target: targetDomain,
-          allowed: Array.from(ALLOWED_DOMAINS)
+          error: "Domain not specified or not allowed by 51-BYPASS AI Gateway",
+          requested_segment: firstSegment,
+          usage: `https://${{url.host}}/<domain>/v1/... (e.g. https://${{url.host}}/api.openai.com/v1/chat/completions)`,
+          core_domains_count: coreDomains.size,
+          custom_domains_count: CUSTOM_DOMAINS.size
         }}, null, 2),
         {{
-          status: 403,
+          status: 400,
           headers: {{ "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }}
         }}
       );
@@ -143,13 +218,13 @@ def sync_to_cloudflare(cfg: AppConfig, force: bool = False) -> Tuple[bool, str]:
         save_config(cfg)
         return False, "Cloudflare credentials not configured"
 
-    active_domains = get_active_domains(cfg)
+    custom_domains = load_custom_domains()
     now = datetime.datetime.now(datetime.timezone.utc).isoformat()
 
-    if not force and cfg.last_sync_status == "OK" and cfg.last_sync_domain_count == len(active_domains):
+    if not force and cfg.last_sync_status == "OK" and cfg.last_sync_domain_count == len(custom_domains):
         return True, "Already in sync"
 
-    script = generate_worker_script(active_domains, cfg.default_domain)
+    script = generate_worker_script(custom_domains, cfg.default_domain, cfg.remote_domains_url)
 
     try:
         success = deploy_worker_script(
@@ -162,9 +237,9 @@ def sync_to_cloudflare(cfg: AppConfig, force: bool = False) -> Tuple[bool, str]:
             cfg.last_sync_time = now
             cfg.last_sync_status = "OK"
             cfg.last_sync_error = None
-            cfg.last_sync_domain_count = len(active_domains)
+            cfg.last_sync_domain_count = len(custom_domains)
             save_config(cfg)
-            return True, f"Synchronized {len(active_domains)} domains to Cloudflare Worker '{cfg.worker_name}'"
+            return True, f"Synchronized {len(custom_domains)} custom domains to Cloudflare Worker '{cfg.worker_name}'"
         else:
             cfg.last_sync_status = "ERROR"
             cfg.last_sync_error = "Deployment failed without explicit error"
@@ -182,6 +257,6 @@ def sync_to_cloudflare(cfg: AppConfig, force: bool = False) -> Tuple[bool, str]:
         return False, f"Sync error: {e}"
 
 def export_worker_script(cfg: AppConfig, path: Path) -> None:
-    domains = get_active_domains(cfg)
-    script = generate_worker_script(domains, cfg.default_domain)
+    custom_domains = load_custom_domains()
+    script = generate_worker_script(custom_domains, cfg.default_domain, cfg.remote_domains_url)
     path.write_text(script, encoding="utf-8")

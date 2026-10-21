@@ -12,15 +12,20 @@ PRIMARY_CONFIG_DIR = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData"
 PRIMARY_CONFIG_PATH = PRIMARY_CONFIG_DIR / "config.json"
 BACKUP_CONFIG_PATH = PRIMARY_CONFIG_DIR / "config.json.bak"
 
-CORE_DOMAINS_PATH = PRIMARY_CONFIG_DIR / "core_domains.json"
-USER_DOMAINS_PATH = PRIMARY_CONFIG_DIR / "user_domains.txt"
+DOMAINS_DIR = PRIMARY_CONFIG_DIR / "domains"
+CUSTOM_DOMAINS_PATH = DOMAINS_DIR / "custom.txt"
+CORE_DOMAINS_PATH = DOMAINS_DIR / "core.txt"
+USER_DOMAINS_PATH = CUSTOM_DOMAINS_PATH
+
+LEGACY_USER_DOMAINS_PATH = PRIMARY_CONFIG_DIR / "user_domains.txt"
+LEGACY_CORE_DOMAINS_PATH = PRIMARY_CONFIG_DIR / "core_domains.json"
 
 DOT_CONFIG_DIR = Path.home() / ".51-bypass"
 DOT_CONFIG_PATH = DOT_CONFIG_DIR / "config.json"
 LEGACY_CONFIG_DIR = Path.home() / ".cloudflare-dns"
 LEGACY_CONFIG_PATH = LEGACY_CONFIG_DIR / "config.json"
 
-DEFAULT_REMOTE_DOMAINS_URL = "https://raw.githubusercontent.com/51-bypass/domains/main/domains.txt"
+DEFAULT_REMOTE_DOMAINS_URL = "https://raw.githubusercontent.com/51-bypass/domains/main/domains/core.txt"
 
 @dataclass
 class AppConfig:
@@ -29,15 +34,17 @@ class AppConfig:
     api_token: str = ""
     worker_name: str = "ai-gateway"
     subdomain: str = ""
-    default_domain: str = "integrate.api.nvidia.com"
+    default_domain: str = ""
     remote_domains_url: str = DEFAULT_REMOTE_DOMAINS_URL
     last_sync_time: Optional[str] = None
     last_sync_status: str = "PENDING"
     last_sync_error: Optional[str] = None
     last_sync_domain_count: int = 0
+    last_custom_hash: Optional[str] = None
 
 def get_config_dir() -> Path:
     PRIMARY_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    DOMAINS_DIR.mkdir(parents=True, exist_ok=True)
     return PRIMARY_CONFIG_DIR
 
 def migrate_external_config() -> Optional[AppConfig]:
@@ -59,17 +66,17 @@ def migrate_external_config() -> Optional[AppConfig]:
         cfg.api_token = data.get("api_token", data.get("ApiToken", ""))
         cfg.worker_name = data.get("worker_name", data.get("WorkerName", "ai-gateway"))
         cfg.subdomain = data.get("subdomain", data.get("Subdomain", ""))
-        cfg.default_domain = data.get("default_domain", data.get("DefaultDomain", "integrate.api.nvidia.com"))
+        cfg.default_domain = data.get("default_domain", data.get("DefaultDomain", ""))
 
         legacy_domains = data.get("domains", data.get("Domains", []))
-        if legacy_domains and not USER_DOMAINS_PATH.exists():
+        if legacy_domains and not CUSTOM_DOMAINS_PATH.exists():
             user_lines = [d.lower().strip() for d in legacy_domains if d.strip()]
-            USER_DOMAINS_PATH.parent.mkdir(parents=True, exist_ok=True)
-            USER_DOMAINS_PATH.write_text("\n".join(dict.fromkeys(user_lines)) + "\n", encoding="utf-8")
+            CUSTOM_DOMAINS_PATH.parent.mkdir(parents=True, exist_ok=True)
+            CUSTOM_DOMAINS_PATH.write_text("\n".join(dict.fromkeys(user_lines)) + "\n", encoding="utf-8")
 
         dot_user = DOT_CONFIG_DIR / "user_domains.txt"
-        if dot_user.exists() and not USER_DOMAINS_PATH.exists():
-            shutil.copy2(dot_user, USER_DOMAINS_PATH)
+        if dot_user.exists() and not CUSTOM_DOMAINS_PATH.exists():
+            shutil.copy2(dot_user, CUSTOM_DOMAINS_PATH)
 
         return cfg
     except Exception:
@@ -77,6 +84,12 @@ def migrate_external_config() -> Optional[AppConfig]:
 
 def load_config() -> AppConfig:
     get_config_dir()
+
+    if LEGACY_USER_DOMAINS_PATH.exists() and not CUSTOM_DOMAINS_PATH.exists():
+        try:
+            shutil.copy2(LEGACY_USER_DOMAINS_PATH, CUSTOM_DOMAINS_PATH)
+        except Exception:
+            pass
 
     if PRIMARY_CONFIG_PATH.exists():
         try:
@@ -89,12 +102,13 @@ def load_config() -> AppConfig:
                 api_token=raw.get("api_token", ""),
                 worker_name=raw.get("worker_name", "ai-gateway"),
                 subdomain=raw.get("subdomain", ""),
-                default_domain=raw.get("default_domain", "integrate.api.nvidia.com"),
+                default_domain=raw.get("default_domain", ""),
                 remote_domains_url=raw.get("remote_domains_url", DEFAULT_REMOTE_DOMAINS_URL),
                 last_sync_time=raw.get("last_sync_time"),
                 last_sync_status=raw.get("last_sync_status", "PENDING"),
                 last_sync_error=raw.get("last_sync_error"),
                 last_sync_domain_count=raw.get("last_sync_domain_count", 0),
+                last_custom_hash=raw.get("last_custom_hash"),
             )
 
             if not cfg.account_id or not cfg.api_token:

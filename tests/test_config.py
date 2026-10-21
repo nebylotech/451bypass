@@ -15,7 +15,7 @@ class TestConfig(unittest.TestCase):
         cfg = AppConfig()
         self.assertEqual(cfg.schema_version, SCHEMA_VERSION)
         self.assertEqual(cfg.worker_name, "ai-gateway")
-        self.assertEqual(cfg.default_domain, "integrate.api.nvidia.com")
+        self.assertEqual(cfg.default_domain, "")
 
     def test_serialization(self):
         cfg = AppConfig(account_id="acc123", api_token="tok456", worker_name="test-worker")

@@ -2,15 +2,18 @@ import os
 import sys
 import time
 from . import __version__
-from .config import AppConfig, load_config, save_config, USER_DOMAINS_PATH, CORE_DOMAINS_PATH
+from .config import AppConfig, load_config, save_config, CUSTOM_DOMAINS_PATH, CORE_DOMAINS_PATH
 from .utils import print_table, Colors, colorize, success, info, warn, error, is_valid_domain, normalize_domain, mask_token
 from .lists import (
     load_core_domains,
-    load_user_domains,
+    load_custom_domains,
     get_active_domains,
     update_core_domains_from_remote,
     add_user_domain,
-    remove_user_domain
+    remove_user_domain,
+    reconcile_custom_domains,
+    check_custom_file_changed,
+    get_custom_domains_file
 )
 from .checker import perform_check
 from .cloudflare import verify_token, check_worker_live_health
@@ -114,14 +117,16 @@ def menu_update_domains(cfg: AppConfig) -> None:
     ok, msg, count = update_core_domains_from_remote(cfg)
     if ok:
         print(success(msg))
-        print(info("Synchronizing changes with Cloudflare..."))
-        s_ok, s_msg = sync_to_cloudflare(cfg)
+        print(info("Reconciling custom domains and uploading to Cloudflare..."))
+        dups, rem, s_ok, s_msg = reconcile_custom_domains(cfg, force_sync=True)
+        if dups:
+            print(warn(f"Removed duplicates: {', '.join(dups)}"))
         print(success(s_msg) if s_ok else warn(s_msg))
     else:
         print(warn(msg))
         core_cnt = len(load_core_domains())
-        user_cnt = len(load_user_domains())
-        print(info(f"Current local setup: {core_cnt} core domains, {user_cnt} user domains."))
+        user_cnt = len(load_custom_domains())
+        print(info(f"Current local setup: {core_cnt} core domains, {user_cnt} custom domains."))
 
     print()
     input("Press ENTER to return to menu...")
@@ -136,10 +141,19 @@ def menu_diagnostics(cfg: AppConfig) -> None:
     input("Press ENTER to return to menu...")
 
 def main_menu(cfg: AppConfig) -> None:
+    last_notice = None
+
     while True:
+        if check_custom_file_changed(cfg):
+            dups, rem, syn, msg = reconcile_custom_domains(cfg)
+            if dups:
+                last_notice = f"Auto-cleaned {len(dups)} duplicates from custom.txt: {', '.join(dups)}"
+            elif syn:
+                last_notice = f"Auto-synchronized {len(rem)} custom domains to worker."
+
         clear_screen()
         core_cnt = len(load_core_domains())
-        user_cnt = len(load_user_domains())
+        user_cnt = len(load_custom_domains())
         total_cnt = len(get_active_domains(cfg))
 
         print(f"{Colors.BOLD}==============================================================={Colors.RESET}")
@@ -147,11 +161,14 @@ def main_menu(cfg: AppConfig) -> None:
         print(f"{Colors.BOLD}==============================================================={Colors.RESET}")
         print(f"  Active Domains: {colorize(str(total_cnt), Colors.GREEN)} ({core_cnt} core, {user_cnt} custom)")
         print(f"  Gateway URL:    {colorize(f'https://{cfg.worker_name}.{cfg.subdomain}.workers.dev' if cfg.subdomain else 'Not configured', Colors.CYAN)}")
+        if last_notice:
+            print(f"  {colorize('[Notice]', Colors.YELLOW)} {last_notice}")
+            last_notice = None
         print(f"{Colors.BOLD}---------------------------------------------------------------{Colors.RESET}")
         print("  [1] Check Service     - Verify Gateway, Worker, and Task health")
         print("  [2] Test Domains      - Probe active endpoints for 451/403 bypass")
         print("  [3] Update Domains    - Check and pull latest domains from GitHub")
-        print("  [4] Import Domains    - Edit personal custom domains in Notepad")
+        print("  [4] Custom Domains    - Edit personal custom.txt in Notepad (auto-sync)")
         print("  [5] Run Diagnostics   - Full 8-point system diagnostics")
         print("  [0] Exit")
         print(f"{Colors.BOLD}==============================================================={Colors.RESET}\n")

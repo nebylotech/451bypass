@@ -1,12 +1,54 @@
-const ALLOWED_DOMAINS = new Set([
+const FALLBACK_CORE_DOMAINS = new Set([
+  "api.anthropic.com",
+  "api.cohere.ai",
+  "api.deepseek.com",
+  "api.elevenlabs.io",
+  "api.groq.com",
+  "api.mistral.ai",
   "api.ngc.nvidia.com",
   "api.openai.com",
+  "api.perplexity.ai",
   "api.x.ai",
   "build.nvidia.com",
-  "chatgpt.com",
-  "integrate.api.nvidia.com"
+  "integrate.api.nvidia.com",
+  "openrouter.ai"
 ]);
-const DEFAULT_DOMAIN = "integrate.api.nvidia.com";
+const CUSTOM_DOMAINS = new Set([]);
+const REMOTE_CORE_URL = "https://raw.githubusercontent.com/51-bypass/domains/main/domains/core.txt";
+const DEFAULT_DOMAIN = "";
+
+let cachedCoreDomains = null;
+let lastCoreFetch = 0;
+const CORE_CACHE_TTL_MS = 3600000;
+
+async function getCoreDomains(env) {
+  const now = Date.now();
+  if (cachedCoreDomains && (now - lastCoreFetch < CORE_CACHE_TTL_MS)) {
+    return cachedCoreDomains;
+  }
+  const url = (env && env.REMOTE_CORE_URL) || REMOTE_CORE_URL;
+  if (url) {
+    try {
+      const resp = await fetch(url, {
+        cf: { cacheTtl: 3600, cacheEverything: true }
+      });
+      if (resp.ok) {
+        const text = await resp.text();
+        const list = text.split("\n")
+          .map(l => l.trim().toLowerCase())
+          .filter(l => l && !l.startsWith("#"));
+        if (list.length > 0) {
+          cachedCoreDomains = new Set(list);
+          lastCoreFetch = now;
+          return cachedCoreDomains;
+        }
+      }
+    } catch (e) {
+    }
+  }
+  if (cachedCoreDomains) return cachedCoreDomains;
+  return FALLBACK_CORE_DOMAINS;
+}
 
 export default {
   async fetch(request, env, ctx) {
@@ -22,17 +64,35 @@ export default {
     }
 
     const url = new URL(request.url);
+    const coreDomains = await getCoreDomains(env);
+
+    if (url.pathname === "/core-domains") {
+      return new Response(Array.from(coreDomains).join("\n") + "\n", {
+        headers: { "Content-Type": "text/plain; charset=utf-8", "Access-Control-Allow-Origin": "*" }
+      });
+    }
+
+    if (url.pathname === "/custom-domains") {
+      return new Response(Array.from(CUSTOM_DOMAINS).join("\n") + "\n", {
+        headers: { "Content-Type": "text/plain; charset=utf-8", "Access-Control-Allow-Origin": "*" }
+      });
+    }
 
     if (url.pathname === "/" || url.pathname === "/health") {
+      const totalDomains = new Set([...coreDomains, ...CUSTOM_DOMAINS]);
       return new Response(
         JSON.stringify({
           status: "ok",
           gateway: "51-BYPASS AI Gateway",
-          default_domain: DEFAULT_DOMAIN,
-          managed_domains: Array.from(ALLOWED_DOMAINS),
+          default_domain: DEFAULT_DOMAIN || null,
+          core_domains_count: coreDomains.size,
+          custom_domains_count: CUSTOM_DOMAINS.size,
+          total_domains_count: totalDomains.size,
+          custom_domains: Array.from(CUSTOM_DOMAINS),
+          core_domains: Array.from(coreDomains),
           routes: {
-            drop_in_default: `https://${url.host}/v1/... -> ${DEFAULT_DOMAIN}/v1/...`,
-            multi_domain: `https://${url.host}/<domain>/v1/...`
+            multi_domain: `https://${url.host}/<domain>/v1/...`,
+            default_domain: DEFAULT_DOMAIN ? `https://${url.host}/v1/... -> ${DEFAULT_DOMAIN}/v1/...` : "disabled (domain prefix required)"
           }
         }, null, 2),
         {
@@ -46,28 +106,28 @@ export default {
 
     const cleanPath = url.pathname.replace(/^\/+/, "");
     const slashIndex = cleanPath.indexOf("/");
-    const firstSegment = slashIndex >= 0 ? cleanPath.substring(0, slashIndex) : cleanPath;
+    const firstSegment = slashIndex >= 0 ? cleanPath.substring(0, slashIndex).toLowerCase() : cleanPath.toLowerCase();
 
     let targetDomain;
     let targetPath;
 
-    if (ALLOWED_DOMAINS.has(firstSegment)) {
+    if (coreDomains.has(firstSegment) || CUSTOM_DOMAINS.has(firstSegment)) {
       targetDomain = firstSegment;
       targetPath = slashIndex >= 0 ? cleanPath.substring(slashIndex) : "/";
-    } else {
+    } else if (DEFAULT_DOMAIN) {
       targetDomain = DEFAULT_DOMAIN;
       targetPath = "/" + cleanPath;
-    }
-
-    if (!ALLOWED_DOMAINS.has(targetDomain)) {
+    } else {
       return new Response(
         JSON.stringify({
-          error: "Domain not allowed by 51-BYPASS AI Gateway",
-          target: targetDomain,
-          allowed: Array.from(ALLOWED_DOMAINS)
+          error: "Domain not specified or not allowed by 51-BYPASS AI Gateway",
+          requested_segment: firstSegment,
+          usage: `https://${url.host}/<domain>/v1/... (e.g. https://${url.host}/api.openai.com/v1/chat/completions)`,
+          core_domains_count: coreDomains.size,
+          custom_domains_count: CUSTOM_DOMAINS.size
         }, null, 2),
         {
-          status: 403,
+          status: 400,
           headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
         }
       );

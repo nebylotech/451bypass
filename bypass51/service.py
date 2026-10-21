@@ -5,7 +5,7 @@ import datetime
 from pathlib import Path
 from typing import Tuple
 from .config import load_config, PRIMARY_CONFIG_DIR
-from .sync import sync_to_cloudflare
+from .lists import reconcile_custom_domains
 from .cloudflare import check_worker_live_health
 from .utils import success, info, warn, error
 
@@ -30,9 +30,15 @@ def run_service_cycle() -> Tuple[bool, str]:
         healthy, h_msg = check_worker_live_health(cfg.worker_name, cfg.subdomain)
         log_service_message(f"Worker health check: {h_msg}")
 
-    ok, msg = sync_to_cloudflare(cfg)
-    log_service_message(f"Sync result: {msg}")
-    return ok, msg
+    duplicates, remaining, synced, msg = reconcile_custom_domains(cfg)
+    if duplicates:
+        log_service_message(f"Removed duplicates from custom.txt: {', '.join(duplicates)}")
+    if synced:
+        log_service_message(f"Synchronized {len(remaining)} custom domains to worker.")
+    else:
+        log_service_message(f"Custom domains check: {msg}")
+
+    return True, msg
 
 def install_task() -> Tuple[bool, str]:
     if sys.platform != "win32":

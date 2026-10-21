@@ -2,15 +2,18 @@ import sys
 import argparse
 from pathlib import Path
 from . import __version__, __product_name__, __command_name__
-from .config import load_config, save_config, USER_DOMAINS_PATH, CORE_DOMAINS_PATH
+from .config import load_config, save_config, CUSTOM_DOMAINS_PATH, CORE_DOMAINS_PATH
 from .utils import success, info, warn, error, print_table, normalize_domain, is_valid_domain
 from .lists import (
     load_core_domains,
-    load_user_domains,
+    load_custom_domains,
     get_active_domains,
     update_core_domains_from_remote,
     add_user_domain,
-    remove_user_domain
+    remove_user_domain,
+    reconcile_custom_domains,
+    check_custom_file_changed,
+    get_custom_domains_file
 )
 from .checker import perform_check
 from .sync import sync_to_cloudflare, export_worker_script
@@ -66,6 +69,13 @@ def main() -> None:
     cfg = load_config()
     parser = build_parser()
 
+    if check_custom_file_changed(cfg):
+        dups, rem, syn, msg = reconcile_custom_domains(cfg)
+        if dups:
+            print(warn(f"Removed {len(dups)} duplicate custom domains matching core: {', '.join(dups)}"))
+        if syn:
+            print(success(f"Custom domains updated: {msg}"))
+
     if len(sys.argv) == 1:
         try:
             main_menu(cfg)
@@ -97,45 +107,46 @@ def main() -> None:
             ok, msg, count = update_core_domains_from_remote(cfg)
             if ok:
                 print(success(msg))
-                print(info("Synchronizing changes with Cloudflare..."))
-                s_ok, s_msg = sync_to_cloudflare(cfg)
-                print(success(s_msg) if s_ok else warn(s_msg))
+                print(info("Checking and reconciling custom domains..."))
+                dups, rem, syn, s_msg = reconcile_custom_domains(cfg, force_sync=True)
+                if dups:
+                    print(warn(f"Removed duplicates: {', '.join(dups)}"))
+                print(success(s_msg) if syn else warn(s_msg))
             else:
                 print(warn(msg))
 
         elif args.subcommand == "domains":
             if not args.domains_action or args.domains_action == "list":
                 core = load_core_domains()
-                user = load_user_domains()
+                custom = load_custom_domains()
+                c_file = get_custom_domains_file()
                 print(f"Core Domains ({len(core)}):")
                 for d in core:
                     is_def = " [DEFAULT]" if d == cfg.default_domain else ""
                     print(f"  • {d}{is_def}")
-                print(f"\nUser Custom Domains ({len(user)} in {USER_DOMAINS_PATH.name}):")
-                if not user:
+                print(f"\nUser Custom Domains ({len(custom)} in {c_file.name}):")
+                if not custom:
                     print("  (None)")
-                for d in user:
+                for d in custom:
                     print(f"  • {d}")
             elif args.domains_action == "add":
                 dom = normalize_domain(args.hostname)
                 if not is_valid_domain(dom):
                     print(error("Invalid domain format."))
                     sys.exit(1)
-                ok, msg = add_user_domain(dom)
+                ok, msg = add_user_domain(dom, cfg)
                 if ok:
-                    print(success(f"Added '{dom}' to your personal domains ({USER_DOMAINS_PATH.name})."))
-                    s_ok, s_msg = sync_to_cloudflare(cfg)
-                    print(success(s_msg) if s_ok else warn(s_msg))
+                    print(success(f"Added '{dom}' to your custom domains ({get_custom_domains_file().name})."))
+                    print(success(f"Synchronized with Cloudflare Worker '{cfg.worker_name}'."))
                 else:
                     print(warn(msg))
             elif args.domains_action == "remove":
                 dom = normalize_domain(args.hostname)
-                if remove_user_domain(dom):
-                    print(success(f"Removed '{dom}' from your personal domains."))
-                    s_ok, s_msg = sync_to_cloudflare(cfg)
-                    print(success(s_msg) if s_ok else warn(s_msg))
+                if remove_user_domain(dom, cfg):
+                    print(success(f"Removed '{dom}' from your custom domains."))
+                    print(success(f"Synchronized with Cloudflare Worker '{cfg.worker_name}'."))
                 else:
-                    print(warn(f"Domain '{dom}' not found in personal domains ({USER_DOMAINS_PATH.name})."))
+                    print(warn(f"Domain '{dom}' not found in custom domains."))
 
         elif args.subcommand == "import":
             run_interactive_import(cfg)
@@ -145,8 +156,10 @@ def main() -> None:
             run_diagnostics(cfg, save_path=save_path)
 
         elif args.subcommand in ("sync", "push"):
-            print(info("Starting synchronization with Cloudflare Worker..."))
-            ok, msg = sync_to_cloudflare(cfg, force=True)
+            print(info("Reconciling custom domains and synchronizing with Cloudflare..."))
+            dups, rem, ok, msg = reconcile_custom_domains(cfg, force_sync=True)
+            if dups:
+                print(warn(f"Removed {len(dups)} duplicate domains already in core: {', '.join(dups)}"))
             print(success(msg) if ok else error(msg))
 
         elif args.subcommand == "service":
