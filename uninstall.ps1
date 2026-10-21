@@ -6,7 +6,7 @@ param(
 $ErrorActionPreference = "Continue"
 
 Write-Host "===============================================================" -ForegroundColor Yellow
-Write-Host "           451bypass -- Full System Uninstaller                " -ForegroundColor Yellow
+Write-Host "          451bypass v1.0 -- Full System Uninstaller            " -ForegroundColor Yellow
 Write-Host "===============================================================" -ForegroundColor Yellow
 Write-Host ""
 

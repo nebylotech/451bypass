@@ -20,7 +20,7 @@ from .sync import sync_to_cloudflare, export_worker_script
 from .diagnostics import run_diagnostics
 from .importer import run_interactive_import, parse_domains_from_text
 from .service import install_task, uninstall_task, get_task_status, run_service_cycle
-from .menu import main_menu, menu_check_service, menu_test_domains
+from .menu import main_menu, menu_check_service, menu_test_domains, menu_setup
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -63,6 +63,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     subparsers.add_parser("uninstall", help="Uninstall 451bypass, delete worker, and clean system")
     subparsers.add_parser("version", help="Print version information")
+
+    setup_p = subparsers.add_parser("setup", help="Run 1-click Cloudflare onboarding setup")
+    setup_p.add_argument("--force", action="store_true", help="Force re-authentication")
+    subparsers.add_parser("login", help="Alias for setup")
 
     return parser
 
@@ -197,6 +201,11 @@ def main() -> None:
 
         elif args.subcommand == "version":
             print(f"{__product_name__} v{__version__}")
+
+        elif args.subcommand in ("setup", "login"):
+            ok = menu_setup(cfg)
+            if not ok:
+                sys.exit(1)
 
     except KeyboardInterrupt:
         print("\nInterrupted by user.")

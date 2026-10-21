@@ -9,9 +9,7 @@ from .config import (
     save_config,
     CORE_DOMAINS_PATH,
     CUSTOM_DOMAINS_PATH,
-    PRIMARY_CONFIG_DIR,
-    LEGACY_USER_DOMAINS_PATH,
-    LEGACY_CORE_DOMAINS_PATH
+    PRIMARY_CONFIG_DIR
 )
 from .utils import normalize_domain, is_valid_domain
 
@@ -36,20 +34,14 @@ def compute_file_hash(p: Path) -> str:
 def get_custom_domains_file() -> Path:
     CUSTOM_DOMAINS_PATH.parent.mkdir(parents=True, exist_ok=True)
     if not CUSTOM_DOMAINS_PATH.exists():
-        if LEGACY_USER_DOMAINS_PATH.exists():
+        repo_dir = find_repo_domains_dir()
+        if repo_dir and (repo_dir / "custom.txt").exists():
             try:
-                shutil.copy2(LEGACY_USER_DOMAINS_PATH, CUSTOM_DOMAINS_PATH)
+                shutil.copy2(repo_dir / "custom.txt", CUSTOM_DOMAINS_PATH)
             except Exception:
                 pass
         else:
-            repo_dir = find_repo_domains_dir()
-            if repo_dir and (repo_dir / "custom.txt").exists():
-                try:
-                    shutil.copy2(repo_dir / "custom.txt", CUSTOM_DOMAINS_PATH)
-                except Exception:
-                    pass
-            else:
-                CUSTOM_DOMAINS_PATH.write_text("# api.my-custom-service.com\n", encoding="utf-8")
+            CUSTOM_DOMAINS_PATH.write_text("", encoding="utf-8")
     
     repo_dir = find_repo_domains_dir()
     if repo_dir:

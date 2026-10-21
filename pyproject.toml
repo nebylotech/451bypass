@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "451bypass"
-version = "1.0.0"
+version = "1.0"
 description = "Zero-Cost Regional Restriction Bypass (HTTP 451/403) and AI Gateway for NVIDIA, OpenAI, xAI and custom endpoints."
 readme = "README.md"
 requires-python = ">=3.8"

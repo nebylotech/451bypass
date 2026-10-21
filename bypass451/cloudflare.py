@@ -58,13 +58,31 @@ def verify_token(token: str) -> Tuple[bool, str]:
         return False, str(e)
 
 def list_accounts(token: str) -> List[Dict[str, str]]:
-    resp = _api_request("GET", "/accounts?page=1&per_page=20", token)
     accounts = []
-    for item in resp.get("result", []):
-        accounts.append({
-            "id": item.get("id", ""),
-            "name": item.get("name", "")
-        })
+    try:
+        resp = _api_request("GET", "/accounts?page=1&per_page=20", token)
+        for item in resp.get("result", []):
+            if item.get("id"):
+                accounts.append({
+                    "id": item.get("id", ""),
+                    "name": item.get("name", "")
+                })
+    except CloudflareAPIError:
+        pass
+
+    if not accounts:
+        try:
+            resp = _api_request("GET", "/memberships?page=1&per_page=20", token)
+            for item in resp.get("result", []):
+                acc = item.get("account", {})
+                if acc.get("id"):
+                    accounts.append({
+                        "id": acc.get("id", ""),
+                        "name": acc.get("name", "")
+                    })
+        except CloudflareAPIError:
+            pass
+
     return accounts
 
 def get_subdomain(account_id: str, token: str) -> Optional[str]:

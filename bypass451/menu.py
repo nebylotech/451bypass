@@ -15,8 +15,9 @@ from .lists import (
     check_custom_file_changed,
     get_custom_domains_file
 )
+import webbrowser
 from .checker import perform_check
-from .cloudflare import verify_token, check_worker_live_health
+from .cloudflare import verify_token, check_worker_live_health, list_accounts, get_subdomain
 from .service import get_task_status
 from .sync import sync_to_cloudflare
 from .importer import run_interactive_import
@@ -140,6 +141,57 @@ def menu_diagnostics(cfg: AppConfig) -> None:
     print()
     input("Press ENTER to return to menu...")
 
+def menu_setup(cfg: AppConfig) -> bool:
+    clear_screen()
+    print(f"{Colors.BOLD}==============================================================={Colors.RESET}")
+    print(f"       451bypass v{__version__} -- Подключение Cloudflare Gateway      ")
+    print(f"{Colors.BOLD}==============================================================={Colors.RESET}\n")
+    token_url = "https://dash.cloudflare.com/profile/api-tokens"
+    print(info(f"Открываем страницу токенов Cloudflare: {token_url}"))
+    try:
+        if sys.platform == "win32":
+            os.startfile(token_url)
+        else:
+            webbrowser.open(token_url)
+    except Exception:
+        pass
+
+    print("\nИнструкция:")
+    print("  1. В открывшемся браузере нажмите кнопку 'Create Token'")
+    print("  2. В первой строке выберите шаблон 'Edit Cloudflare Workers' -> 'Use template'")
+    print("  3. Прокрутите страницу вниз и нажмите 'Continue to summary' -> 'Create Token'")
+    print("  4. Скопируйте полученный токен и вставьте сюда:\n")
+
+    while True:
+        token_input = input("Cloudflare API Token: ").strip()
+        if not token_input:
+            continue
+        valid, msg = verify_token(token_input)
+        if not valid:
+            print(error(f"Токен не подошел: {msg}. Попробуйте еще раз."))
+            continue
+        print(success("Токен проверен успешно!"))
+        accs = list_accounts(token_input)
+        if not accs:
+            print(error("Не удалось найти аккаунт Cloudflare для этого токена."))
+            return False
+        cfg.account_id = accs[0]["id"]
+        cfg.api_token = token_input
+        print(success(f"Аккаунт определен автоматически: {accs[0].get('name', '')} ({cfg.account_id})"))
+        sub = get_subdomain(cfg.account_id, cfg.api_token)
+        if sub:
+            cfg.subdomain = sub
+            print(success(f"Workers Subdomain: {sub}.workers.dev"))
+        else:
+            custom_sub = input("Введите имя поддомена Workers: ").strip()
+            if custom_sub:
+                cfg.subdomain = custom_sub
+        save_config(cfg)
+        ok, smsg = sync_to_cloudflare(cfg, force=True)
+        if ok:
+            print(success(f"Шлюз успешно запущен: https://{cfg.worker_name}.{cfg.subdomain}.workers.dev"))
+        return True
+
 def main_menu(cfg: AppConfig) -> None:
     last_notice = None
 
@@ -170,10 +222,11 @@ def main_menu(cfg: AppConfig) -> None:
         print("  [3] Update Domains    - Check and pull latest domains from GitHub")
         print("  [4] Custom Domains    - Edit personal custom.txt in Notepad (auto-sync)")
         print("  [5] Run Diagnostics   - Full 8-point system diagnostics")
+        print("  [6] Setup / Auth      - Connect Cloudflare API Token")
         print("  [0] Exit")
         print(f"{Colors.BOLD}==============================================================={Colors.RESET}\n")
         
-        choice = input("Select an option [0-5]: ").strip()
+        choice = input("Select an option [0-6]: ").strip()
         if choice == "1":
             menu_check_service(cfg)
         elif choice == "2":
@@ -184,6 +237,9 @@ def main_menu(cfg: AppConfig) -> None:
             run_interactive_import(cfg)
         elif choice == "5":
             menu_diagnostics(cfg)
+        elif choice == "6":
+            menu_setup(cfg)
+            input("\nPress ENTER to return to menu...")
         elif choice == "0":
             clear_screen()
             print("Exiting 451bypass.")

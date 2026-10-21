@@ -10,7 +10,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 Write-Host "===============================================================" -ForegroundColor Cyan
-Write-Host "          451bypass -- Automated Installer and Setup           " -ForegroundColor Cyan
+Write-Host "         451bypass v1.0 -- Automated Installer and Setup       " -ForegroundColor Cyan
 Write-Host "===============================================================" -ForegroundColor Cyan
 Write-Host ""
 
@@ -43,23 +43,41 @@ if (-not $CurrentDir) {
 Write-Host "[*] Installing 451bypass into: $InstallDir" -ForegroundColor Yellow
 
 $PackageSrc = Join-Path $CurrentDir "bypass451"
+$DomainsSrc = Join-Path $CurrentDir "domains"
+$UnScript = Join-Path $CurrentDir "uninstall.ps1"
+
+if (-not (Test-Path $PackageSrc)) {
+    Write-Host "[*] Downloading 451bypass package from GitHub..." -ForegroundColor Cyan
+    $ZipPath = Join-Path $env:TEMP "451bypass-main.zip"
+    $ExtractDir = Join-Path $env:TEMP "451bypass-main-extract"
+    if (Test-Path $ExtractDir) {
+        Remove-Item -Path $ExtractDir -Recurse -Force | Out-Null
+    }
+    Invoke-WebRequest -Uri "https://github.com/nebylotech/451bypass/archive/refs/heads/main.zip" -OutFile $ZipPath
+    Expand-Archive -Path $ZipPath -DestinationPath $ExtractDir -Force
+    $ExtractedRoot = Join-Path $ExtractDir "451bypass-main"
+    $PackageSrc = Join-Path $ExtractedRoot "bypass451"
+    $DomainsSrc = Join-Path $ExtractedRoot "domains"
+    $UnScript = Join-Path $ExtractedRoot "uninstall.ps1"
+}
+
 if (Test-Path $PackageSrc) {
     Copy-Item -Path $PackageSrc -Destination $InstallDir -Recurse -Force
 }
 
-$DomainsSrc = Join-Path $CurrentDir "domains"
 if (Test-Path $DomainsSrc) {
     Copy-Item -Path $DomainsSrc -Destination $InstallDir -Recurse -Force
 }
 
-$UnScript = Join-Path $CurrentDir "uninstall.ps1"
 if (Test-Path $UnScript) {
     Copy-Item -Path $UnScript -Destination $InstallDir -Force
 }
 
 $CmdContent = "@echo off`r`nset `"PYTHONPATH=%~dp0;%PYTHONPATH%`"`r`n`"$($PythonCmd.Source)`" -m bypass451 %*"
 Set-Content -Path (Join-Path $InstallDir "451b.cmd") -Value $CmdContent -Encoding ASCII
-Set-Content -Path (Join-Path $CurrentDir "451b.cmd") -Value $CmdContent -Encoding ASCII
+if (Test-Path (Join-Path $CurrentDir "bypass451")) {
+    Set-Content -Path (Join-Path $CurrentDir "451b.cmd") -Value $CmdContent -Encoding ASCII
+}
 
 Write-Host "[+] Core files installed successfully." -ForegroundColor Green
 
@@ -82,50 +100,43 @@ if ($env:Path -notlike "*$InstallDir*") {
 $ConfigFile = Join-Path $InstallDir "config.json"
 $ExistingAcc = ""
 $ExistingTok = ""
-$ExistingSub = ""
 
 if (Test-Path $ConfigFile) {
     try {
         $Json = Get-Content $ConfigFile -Raw | ConvertFrom-Json
         $ExistingAcc = $Json.account_id
         $ExistingTok = $Json.api_token
-        $ExistingSub = $Json.subdomain
     } catch {}
 }
 
 if ($AccountId) { $ExistingAcc = $AccountId.Trim() }
 if ($ApiToken) { $ExistingTok = $ApiToken.Trim() }
 
-if (-not $ExistingAcc -or -not $ExistingTok) {
+if ($ExistingTok -and -not $ExistingAcc) {
+    Write-Host "[*] Discovering Cloudflare Account ID automatically..." -ForegroundColor Yellow
+    $PyDiscover = "import sys; sys.path.insert(0, r'$InstallDir'); from bypass451.cloudflare import list_accounts, verify_token; valid, msg = verify_token('$ExistingTok'); sys.exit(f'ERROR: {msg}') if not valid else None; accs = list_accounts('$ExistingTok'); sys.exit('ERROR: No account found') if not accs else print(accs[0]['id'])"
+    $ExistingAcc = (& $PythonCmd.Source -c $PyDiscover 2>&1).Trim()
+    if ($ExistingAcc -and $ExistingAcc -notlike "*ERROR*") {
+        Write-Host "[+] Discovered Account ID: $ExistingAcc" -ForegroundColor Green
+    } else {
+        $ExistingAcc = ""
+    }
+}
+
+if ($ExistingAcc -and $ExistingTok) {
+    Write-Host ""
+    Write-Host "[*] Applying Cloudflare credentials and syncing Worker..." -ForegroundColor Yellow
+    $PyInitCode = "import sys; sys.path.insert(0, r'$InstallDir'); from bypass451.config import load_config, save_config; from bypass451.cloudflare import verify_token, get_subdomain; from bypass451.sync import sync_to_cloudflare; cfg = load_config(); cfg.account_id = '$ExistingAcc'; cfg.api_token = '$ExistingTok'; cfg.worker_name = '$WorkerName'; valid, msg = verify_token(cfg.api_token); sys.exit(f'ERROR: Token invalid: {msg}') if not valid else None; sub = get_subdomain(cfg.account_id, cfg.api_token); cfg.subdomain = sub if sub else cfg.subdomain; save_config(cfg); ok, smsg = sync_to_cloudflare(cfg, force=True); print(f'[+] Worker status: {smsg}') if ok else sys.exit(f'ERROR: Sync failed: {smsg}')"
+    $InitRes = & $PythonCmd.Source -c $PyInitCode 2>&1
+    Write-Host $InitRes
+} else {
     if ($NonInteractive) {
         Write-Host "[-] Cloudflare credentials missing in non-interactive mode." -ForegroundColor Red
         exit 1
     }
 
-    Write-Host ""
-    Write-Host "===============================================================" -ForegroundColor Yellow
-    Write-Host "             Cloudflare Workers Configuration                  " -ForegroundColor Yellow
-    Write-Host "===============================================================" -ForegroundColor Yellow
-    Write-Host "To set up your zero-cost gateway, enter your Cloudflare API credentials:" -ForegroundColor Cyan
-    Write-Host "  1. Account ID: 32-character ID from your Cloudflare dashboard (right column)." -ForegroundColor White
-    Write-Host "  2. API Token: Profile -> API Tokens -> Create Token -> 'Edit Cloudflare Workers'." -ForegroundColor White
-    Write-Host ""
-
-    while (-not $ExistingAcc) {
-        $ExistingAcc = (Read-Host "Enter Cloudflare Account ID").Trim()
-    }
-    while (-not $ExistingTok) {
-        $ExistingTok = (Read-Host "Enter Cloudflare API Token").Trim()
-    }
+    & (Join-Path $InstallDir "451b.cmd") setup
 }
-
-Write-Host ""
-Write-Host "[*] Initializing Cloudflare Worker and domain rules..." -ForegroundColor Yellow
-
-$PyInitCode = "import sys; from pathlib import Path; sys.path.insert(0, r'$InstallDir'); from bypass451.config import load_config, save_config; from bypass451.cloudflare import verify_token, get_subdomain; from bypass451.sync import sync_to_cloudflare; cfg = load_config(); cfg.account_id = '$ExistingAcc'.strip() if '$ExistingAcc' else cfg.account_id; cfg.api_token = '$ExistingTok'.strip() if '$ExistingTok' else cfg.api_token; cfg.worker_name = '$WorkerName'; valid, msg = verify_token(cfg.api_token); sys.exit(f'ERROR: Token invalid: {msg}') if not valid else None; sub = get_subdomain(cfg.account_id, cfg.api_token); cfg.subdomain = sub if sub else cfg.subdomain; save_config(cfg); ok, smsg = sync_to_cloudflare(cfg, force=True); print(f'[+] Worker status: {smsg}') if ok else sys.exit(f'ERROR: Sync failed: {smsg}')"
-
-$InitRes = & $PythonCmd.Source -c $PyInitCode 2>&1
-Write-Host $InitRes
 
 if (-not $SkipService) {
     Write-Host ""
@@ -140,7 +151,7 @@ Write-Host "[*] Running final verification..." -ForegroundColor Yellow
 
 Write-Host ""
 Write-Host "===============================================================" -ForegroundColor Green
-Write-Host "           451bypass IS FULLY INSTALLED AND READY!             " -ForegroundColor Green
+Write-Host "        451bypass v1.0 IS FULLY INSTALLED AND READY!           " -ForegroundColor Green
 Write-Host "===============================================================" -ForegroundColor Green
 Write-Host ""
 Write-Host "  You can now type '451b' in ANY terminal:" -ForegroundColor Cyan
