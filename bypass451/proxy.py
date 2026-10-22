@@ -102,6 +102,77 @@ def is_system_pac_enabled(port: int = DEFAULT_PROXY_PORT) -> bool:
     except Exception:
         return False
 
+def broadcast_setting_change() -> None:
+    if sys.platform != "win32":
+        return
+    try:
+        HWND_BROADCAST = 0xFFFF
+        WM_SETTINGCHANGE = 0x001A
+        SMTO_ABORTIFHUNG = 0x0002
+        result = ctypes.c_ulong()
+        ctypes.windll.user32.SendMessageTimeoutW(
+            HWND_BROADCAST,
+            WM_SETTINGCHANGE,
+            0,
+            "Environment",
+            SMTO_ABORTIFHUNG,
+            5000,
+            ctypes.byref(result)
+        )
+    except Exception:
+        pass
+
+def enable_system_env_proxy(port: int = DEFAULT_PROXY_PORT) -> bool:
+    if sys.platform != "win32":
+        return False
+    proxy_val = f"http://127.0.0.1:{port}"
+    try:
+        key = winreg.OpenKey(
+            winreg.HKEY_CURRENT_USER,
+            r"Environment",
+            0,
+            winreg.KEY_SET_VALUE
+        )
+        for var in ["HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy", "ALL_PROXY", "all_proxy"]:
+            winreg.SetValueEx(key, var, 0, winreg.REG_SZ, proxy_val)
+        winreg.CloseKey(key)
+        broadcast_setting_change()
+        return True
+    except Exception:
+        return False
+
+def disable_system_env_proxy() -> bool:
+    if sys.platform != "win32":
+        return False
+    try:
+        key = winreg.OpenKey(
+            winreg.HKEY_CURRENT_USER,
+            r"Environment",
+            0,
+            winreg.KEY_SET_VALUE
+        )
+        for var in ["HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy", "ALL_PROXY", "all_proxy"]:
+            try:
+                winreg.DeleteValue(key, var)
+            except FileNotFoundError:
+                pass
+        winreg.CloseKey(key)
+        broadcast_setting_change()
+        return True
+    except Exception:
+        return False
+
+def is_system_env_proxy_enabled(port: int = DEFAULT_PROXY_PORT) -> bool:
+    if sys.platform != "win32":
+        return False
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Environment") as key:
+            val, _ = winreg.QueryValueEx(key, "HTTPS_PROXY")
+            expected = f"http://127.0.0.1:{port}"
+            return str(val).strip().lower() == expected.lower()
+    except Exception:
+        return False
+
 def is_proxy_running(port: int = DEFAULT_PROXY_PORT, timeout: float = 1.0) -> bool:
     import urllib.request
     try:

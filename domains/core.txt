@@ -464,3 +464,11 @@ redditmedia.com
 redditstatic.com
 redd.it
 rlcdn.com
+nvidia.com
+api.nvidia.com
+ai.api.nvidia.com
+api.nvcf.nvidia.com
+grpc.nvcf.nvidia.com
+nvcf.nvidia.com
+health.api.nvidia.com
+catalog.ngc.nvidia.com

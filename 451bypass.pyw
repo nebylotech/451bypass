@@ -26,7 +26,7 @@ def main():
     try:
         from bypass451.config import PRIMARY_CONFIG_DIR
         from bypass451.daemon import PID_FILE, DAEMON_LOG, is_proxy_running
-        from bypass451.proxy import enable_system_pac, run_server
+        from bypass451.proxy import enable_system_pac, enable_system_env_proxy, run_server
     except ImportError as e:
         err_log = Path(local_appdata) / "451bypass" / "daemon.log" if local_appdata else Path("daemon.log")
         err_log.parent.mkdir(parents=True, exist_ok=True)
@@ -36,8 +36,9 @@ def main():
 
     PRIMARY_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
 
-    # 1. Ensure system PAC is enabled immediately upon logon
+    # 1. Ensure system PAC and environment proxy are enabled immediately upon logon
     enable_system_pac()
+    enable_system_env_proxy()
 
     # 2. If proxy is already running, exit cleanly
     if is_proxy_running():

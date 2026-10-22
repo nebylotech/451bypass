@@ -286,7 +286,7 @@ export default {{
     let targetDomain;
     let targetPath;
 
-    if (coreDomains.has(firstSegment) || CUSTOM_DOMAINS.has(firstSegment)) {{
+    if (isDomainAllowed(firstSegment, coreDomains, CUSTOM_DOMAINS)) {{
       targetDomain = firstSegment;
       targetPath = slashIndex >= 0 ? cleanPath.substring(slashIndex) : "/";
     }} else if (DEFAULT_DOMAIN) {{
@@ -411,7 +411,8 @@ def sync_to_cloudflare(cfg: AppConfig, force: bool = False) -> Tuple[bool, str]:
         save_config(cfg)
         return False, f"Sync error: {e}"
 
-def export_worker_script(cfg: AppConfig, path: Path) -> None:
+def export_worker_script(cfg: AppConfig, path: Path, include_secret: bool = False) -> None:
     custom_domains = load_custom_domains()
-    script = generate_worker_script(custom_domains, cfg.default_domain, cfg.remote_domains_url, gateway_secret=cfg.gateway_secret)
+    secret = cfg.gateway_secret if include_secret else ""
+    script = generate_worker_script(custom_domains, cfg.default_domain, cfg.remote_domains_url, gateway_secret=secret)
     path.write_text(script, encoding="utf-8")

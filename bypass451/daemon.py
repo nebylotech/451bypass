@@ -11,6 +11,8 @@ from .proxy import (
     run_server,
     enable_system_pac,
     disable_system_pac,
+    enable_system_env_proxy,
+    disable_system_env_proxy,
     is_system_pac_enabled,
     is_proxy_running,
     DEFAULT_PROXY_PORT
@@ -104,6 +106,7 @@ def start_daemon(enable_pac: bool = True, port: int = DEFAULT_PROXY_PORT) -> Tup
 
         if enable_pac:
             enable_system_pac(port)
+            enable_system_env_proxy(port)
 
         return True, f"451bypass daemon started successfully (PID: {proc.pid})"
     except Exception as e:
@@ -111,6 +114,7 @@ def start_daemon(enable_pac: bool = True, port: int = DEFAULT_PROXY_PORT) -> Tup
 
 def stop_daemon() -> Tuple[bool, str]:
     disable_system_pac()
+    disable_system_env_proxy()
     pid = get_running_pid()
     
     if pid:
