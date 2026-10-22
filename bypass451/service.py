@@ -42,7 +42,15 @@ def register_autorun() -> bool:
     pkg_dir = Path(__file__).resolve().parent.parent
     install_dir = PRIMARY_CONFIG_DIR
 
-    val = f'"{pythonw}" -m bypass451.daemon run'
+    pyw_script = install_dir / "451bypass.pyw"
+    if not pyw_script.exists():
+        repo_script = pkg_dir / "451bypass.pyw"
+        if repo_script.exists():
+            import shutil
+            shutil.copy2(repo_script, pyw_script)
+
+    target_script = pyw_script if pyw_script.exists() else (pkg_dir / "451bypass.pyw")
+    val = f'"{pythonw}" "{target_script}"'
     try:
         with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY_PATH, 0, winreg.KEY_SET_VALUE) as key:
             winreg.SetValueEx(key, RUN_VALUE_NAME, 0, winreg.REG_SZ, val)
@@ -76,9 +84,15 @@ def install_task() -> Tuple[bool, str]:
 
     # 2. Also register scheduled task if possible
     pythonw = get_pythonw_path()
+    pkg_dir = Path(__file__).resolve().parent.parent
+    install_dir = PRIMARY_CONFIG_DIR
+    target_script = install_dir / "451bypass.pyw"
+    if not target_script.exists():
+        target_script = pkg_dir / "451bypass.pyw"
+
     cmd = (
         f'schtasks /create /tn "{SCHTASKS_NAME}" '
-        f'/tr "\\"{pythonw}\\" -m bypass451.daemon run" '
+        f'/tr "\\"{pythonw}\\" \\"{target_script}\\"" '
         f'/sc onlogon /f'
     )
     subprocess.run(cmd, shell=True, capture_output=True, text=True, errors="replace")

@@ -73,6 +73,11 @@ if (Test-Path $UnScript) {
     Copy-Item -Path $UnScript -Destination $InstallDir -Force
 }
 
+$PywSrc = Join-Path $CurrentDir "451bypass.pyw"
+if (Test-Path $PywSrc) {
+    Copy-Item -Path $PywSrc -Destination $InstallDir -Force
+}
+
 $CmdContent = "@echo off`r`nset `"PYTHONPATH=%~dp0;%PYTHONPATH%`"`r`n`"$($PythonCmd.Source)`" -m bypass451 %*"
 Set-Content -Path (Join-Path $InstallDir "451b.cmd") -Value $CmdContent -Encoding ASCII
 if (Test-Path (Join-Path $CurrentDir "bypass451")) {
@@ -145,7 +150,8 @@ if (-not $SkipService) {
     # 1. Register in HKCU Run (runs silently upon user logon for any user)
     $PywPath = Join-Path (Split-Path $PythonCmd.Source) "pythonw.exe"
     if (-not (Test-Path $PywPath)) { $PywPath = $PythonCmd.Source }
-    $RunCmd = "`"$PywPath`" -m bypass451.daemon run"
+    $PywScript = Join-Path $InstallDir "451bypass.pyw"
+    $RunCmd = "`"$PywPath`" `"$PywScript`""
     try {
         Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" -Name "451bypass" -Value $RunCmd -Force
         Write-Host "[+] Registered user logon autorun (HKCU Run)." -ForegroundColor Green

@@ -153,6 +153,7 @@ def get_daemon_status(port: int = DEFAULT_PROXY_PORT) -> Tuple[str, dict]:
 def main():
     if len(sys.argv) > 1 and sys.argv[1] == "run":
         PRIMARY_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+        enable_system_pac()
         if is_proxy_running():
             sys.exit(0)
         import traceback
