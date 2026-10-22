@@ -195,7 +195,7 @@ cats.com
 ldoceonline.com
 pcgamesn.com
 wikidot.com
-wdfiles.com 
+wdfiles.com
 freeimages.com
 pexels.com
 flukenetworks.com
@@ -459,3 +459,8 @@ patreonusercontent.com
 qobuz.com
 sigsauer.com
 paywithmoon.com
+reddit.com
+redditmedia.com
+redditstatic.com
+redd.it
+rlcdn.com
