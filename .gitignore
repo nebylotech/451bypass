@@ -19,3 +19,9 @@ config.json
 *.token
 *.key
 *.pem
+
+# Marketing & internal promotion drafts
+HABR_ARTICLE.md
+PROMO_*.md
+promo/
+
