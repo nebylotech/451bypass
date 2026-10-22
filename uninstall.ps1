@@ -63,6 +63,10 @@ try {
     Remove-ItemProperty -Path $pacReg -Name "AutoConfigURL" -ErrorAction SilentlyContinue
     # Remove autorun
     Remove-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" -Name "451bypass" -ErrorAction SilentlyContinue
+    # Remove environment proxy variables
+    foreach ($var in @("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy", "NO_PROXY", "no_proxy")) {
+        [Environment]::SetEnvironmentVariable($var, $null, "User")
+    }
 } catch {}
 
 # Stop any running daemon process

@@ -290,8 +290,8 @@ class LocalProxy:
                         break
                     dot = lower_host.find('.')
 
-            if not is_blocked:
-                # Direct TCP tunnel (100% provider speed without proxy overhead)
+            if not is_blocked or not self.cfg.subdomain:
+                # Direct TCP tunnel (100% provider speed, or fallback if worker not configured yet)
                 try:
                     remote_reader, remote_writer = await asyncio.open_connection(host, port)
                     writer.write(b"HTTP/1.1 200 Connection Established\r\n\r\n")
@@ -514,8 +514,8 @@ class LocalProxy:
                         break
                     dot = lower_host.find('.')
 
-        if not is_blocked:
-            # Direct TCP connection (loopback, e.g. Omniroute, or unblocked external host)
+        if not is_blocked or not self.cfg.subdomain:
+            # Direct TCP connection (loopback, e.g. Omniroute, unblocked external, or fallback)
             try:
                 remote_reader, remote_writer = await asyncio.open_connection(target_host, target_port)
                 remote_writer.write(req_bytes)

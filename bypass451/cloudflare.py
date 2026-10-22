@@ -30,8 +30,9 @@ def _api_request(
         headers["Content-Type"] = content_type
 
     req = urllib.request.Request(url, data=data, headers=headers, method=method)
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        with opener.open(req, timeout=timeout) as resp:
             raw = resp.read().decode("utf-8")
             return json.loads(raw)
     except urllib.error.HTTPError as e:
@@ -178,8 +179,9 @@ def check_worker_live_health(worker_name: str, subdomain: str, secret: str = "",
     if secret:
         headers["X-451bypass-Secret"] = secret
     req = urllib.request.Request(url, headers=headers)
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        with opener.open(req, timeout=timeout) as resp:
             if resp.status == 200:
                 raw = resp.read().decode("utf-8")
                 data = json.loads(raw)
