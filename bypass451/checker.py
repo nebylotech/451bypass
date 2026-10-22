@@ -137,7 +137,8 @@ def perform_check(
             error_str = str(e)
     else:
         if use_gateway and cfg and cfg.subdomain and cfg.worker_name:
-            secret_p = f"?secret={cfg.gateway_secret}" if cfg.gateway_secret else ""
+            sep = "&" if "?" in path else "?"
+            secret_p = f"{sep}secret={cfg.gateway_secret}" if cfg.gateway_secret else ""
             url = f"https://{cfg.worker_name}.{cfg.subdomain}.workers.dev/{domain}{path}{secret_p}"
             if cfg.gateway_secret:
                 headers["X-451bypass-Secret"] = cfg.gateway_secret

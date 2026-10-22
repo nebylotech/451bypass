@@ -244,7 +244,17 @@ class LocalProxy:
                                 except Exception:
                                     pass
 
-                        await asyncio.gather(client_to_ws(), ws_to_client(), return_exceptions=True)
+                        t1 = asyncio.create_task(client_to_ws())
+                        t2 = asyncio.create_task(ws_to_client())
+                        done, pending = await asyncio.wait([t1, t2], return_when=asyncio.FIRST_COMPLETED)
+                        for t in pending:
+                            t.cancel()
+                        await asyncio.gather(*pending, return_exceptions=True)
+                        try:
+                            writer.close()
+                            await writer.wait_closed()
+                        except Exception:
+                            pass
                 except Exception as e:
                     DAEMON_LOG = PRIMARY_CONFIG_DIR / "daemon.log"
                     try:

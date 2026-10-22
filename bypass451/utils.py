@@ -55,9 +55,10 @@ DOMAIN_REGEX = re.compile(
 
 def normalize_domain(input_str: str) -> str:
     d = input_str.strip()
-    if d.startswith("https://"):
+    lower = d.lower()
+    if lower.startswith("https://"):
         d = d[8:]
-    elif d.startswith("http://"):
+    elif lower.startswith("http://"):
         d = d[7:]
     
     slash_idx = d.find("/")

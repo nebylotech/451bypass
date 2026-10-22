@@ -150,9 +150,13 @@ def save_user_domains(domains: List[str]) -> None:
 
 def fetch_worker_core_domains(cfg: AppConfig, timeout_sec: float = 4.0) -> List[str]:
     if cfg.worker_name and cfg.subdomain:
-        core_url = f"https://{cfg.worker_name}.{cfg.subdomain}.workers.dev/core-domains"
+        secret_p = f"?secret={cfg.gateway_secret}" if cfg.gateway_secret else ""
+        core_url = f"https://{cfg.worker_name}.{cfg.subdomain}.workers.dev/core-domains{secret_p}"
+        req_headers = {"User-Agent": "451bypass/1.0"}
+        if cfg.gateway_secret:
+            req_headers["X-451bypass-Secret"] = cfg.gateway_secret
         try:
-            req = urllib.request.Request(core_url, headers={"User-Agent": "451bypass/1.0"})
+            req = urllib.request.Request(core_url, headers=req_headers)
             with urllib.request.urlopen(req, timeout=timeout_sec) as resp:
                 if resp.status == 200:
                     raw = resp.read().decode("utf-8")
@@ -166,9 +170,9 @@ def fetch_worker_core_domains(cfg: AppConfig, timeout_sec: float = 4.0) -> List[
         except Exception:
             pass
 
-        health_url = f"https://{cfg.worker_name}.{cfg.subdomain}.workers.dev/health"
+        health_url = f"https://{cfg.worker_name}.{cfg.subdomain}.workers.dev/health{secret_p}"
         try:
-            req = urllib.request.Request(health_url, headers={"User-Agent": "451bypass/1.0"})
+            req = urllib.request.Request(health_url, headers=req_headers)
             with urllib.request.urlopen(req, timeout=timeout_sec) as resp:
                 if resp.status == 200:
                     raw = resp.read().decode("utf-8")

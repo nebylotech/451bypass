@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 import subprocess
 from pathlib import Path
@@ -13,14 +14,21 @@ TEMPLATE_HEADER = """# Add one custom domain per line (e.g. api.my-service.com)
 def parse_domains_from_text(text: str) -> List[str]:
     seen = set()
     results = []
-    for line in text.splitlines():
-        line = line.strip()
-        if not line or line.startswith("#"):
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or line.startswith("//"):
             continue
-        domain = normalize_domain(line)
-        if domain and is_valid_domain(domain) and domain not in seen:
-            seen.add(domain)
-            results.append(domain)
+        # Strip common markdown bullets and numbering
+        line = re.sub(r"^[\s\-*+]+", "", line).strip()
+        line = re.sub(r"^\d+[\.\)]\s*", "", line).strip()
+        
+        # Handle possible comma separation
+        tokens = [t.strip() for t in line.split(",") if t.strip()]
+        for tok in tokens:
+            domain = normalize_domain(tok)
+            if domain and is_valid_domain(domain) and domain not in seen:
+                seen.add(domain)
+                results.append(domain)
     return results
 
 def run_interactive_import(cfg: AppConfig) -> None:
