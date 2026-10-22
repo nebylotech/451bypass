@@ -136,7 +136,7 @@ def run_test_stream(domains: list, cfg: AppConfig, title: str = "Тестиро�
             sys.stdout.write(f"  [{idx}/{total}] Проверка {d:<34} ... ")
             sys.stdout.flush()
 
-            res = perform_check(d, cfg, timeout_sec=3.5)
+            res = perform_check(d, cfg, timeout_sec=5.5)
             table_rows.append([d, res.status_label, f"{res.latency_ms}ms", res.details])
 
             if "OK" in res.status_label:

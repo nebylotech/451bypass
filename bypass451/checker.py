@@ -37,7 +37,17 @@ TEST_PATHS = {
     "api.perplexity.ai": "/robots.txt",
     "openrouter.ai": "/api/v1/models",
     "api.deepseek.com": "/models",
-    "api.mistral.ai": "/v1/models"
+    "api.mistral.ai": "/v1/models",
+    "api.cohere.ai": "/v1",
+    "api.elevenlabs.io": "/v1/voices",
+    "generativelanguage.googleapis.com": "/$discovery/rest"
+}
+
+TEST_HOST_OVERRIDE = {
+    "oaiusercontent.com": "files.oaiusercontent.com",
+    "patreonusercontent.com": "c5.patreonusercontent.com",
+    "servarr.com": "wiki.servarr.com",
+    "notion-static.com": "www.notion.so"
 }
 
 def classify_status(status: Optional[int], body_snippet: str = "", error_str: str = "") -> Tuple[str, str, str]:
@@ -50,6 +60,9 @@ def classify_status(status: Optional[int], body_snippet: str = "", error_str: st
     elif status == 401:
         label = colorize("[OK] 401", Colors.GREEN)
         return label, "BYPASS_OK_401", "HTTP 401 — Обход активен, API ждет ключ авторизации."
+    elif status == 400:
+        label = colorize("[OK] 400", Colors.GREEN)
+        return label, "BAD_REQUEST_400", "HTTP 400 — Сервер ответил, эндпоинт доступен."
     elif status == 451:
         label = colorize("[FAIL 451]", Colors.RED)
         return label, "RESTRICTED_451", "HTTP 451 Unavailable For Legal Reasons — Региональная блокировка."
@@ -58,17 +71,17 @@ def classify_status(status: Optional[int], body_snippet: str = "", error_str: st
         if "country" in b_low or "region" in b_low or "territory" in b_low:
             label = colorize("[FAIL 403]", Colors.RED)
             return label, "RESTRICTED_403", "HTTP 403 Forbidden — Региональный блок в ответе."
-        if any(marker in b_low for marker in ("cloudflare", "cf_bm", "turnstile", "challenge", "just a moment", "cf-ray")):
-            label = colorize("[OK] 403", Colors.GREEN)
-            return label, "CHALLENGE_OK_403", "HTTP 403 — Cloudflare Turnstile (в браузере открывается штатно)."
-        label = colorize("[WARN 403]", Colors.YELLOW)
-        return label, "FORBIDDEN_403", "HTTP 403 Forbidden — Защита от ботов или доступ ограничен."
+        label = colorize("[OK] 403", Colors.GREEN)
+        return label, "CHALLENGE_OK_403", "HTTP 403 — Защита от ботов / WAF (в браузере открывается штатно)."
     elif status == 404:
-        label = colorize("[WARN 404]", Colors.YELLOW)
-        return label, "NOT_FOUND_404", "HTTP 404 Not Found — Эндпоинт доступен."
+        label = colorize("[OK] 404", Colors.GREEN)
+        return label, "NOT_FOUND_404", "HTTP 404 Not Found — Эндпоинт ответил, сервис доступен."
     elif status == 429:
-        label = colorize("[WARN 429]", Colors.YELLOW)
-        return label, "RATE_LIMITED_429", "HTTP 429 Too Many Requests — Лимит запросов."
+        label = colorize("[OK] 429", Colors.GREEN)
+        return label, "RATE_LIMITED_429", "HTTP 429 Too Many Requests — Лимит запросов, сервис доступен."
+    elif status == 530:
+        label = colorize("[OK] 530", Colors.GREEN)
+        return label, "CF_OK_530", "HTTP 530 — Cloudflare Edge ответил (wildcard parent)."
     elif status and 500 <= status < 600:
         label = colorize(f"[FAIL {status}]", Colors.RED)
         return label, f"SERVER_ERROR_{status}", f"HTTP {status} — Ошибка сервера."
@@ -90,13 +103,15 @@ def perform_check(
     cfg: Optional[AppConfig] = None,
     use_gateway: bool = False,
     api_key: Optional[str] = None,
-    timeout_sec: float = 3.5,
+    timeout_sec: float = 5.5,
     proxy_port: int = DEFAULT_PROXY_PORT
 ) -> CheckResult:
-    path = TEST_PATHS.get(domain, "/")
+    target_host = TEST_HOST_OVERRIDE.get(domain, domain)
+    path = TEST_PATHS.get(domain, TEST_PATHS.get(target_host, "/"))
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) 451bypass/1.0",
-        "Accept": "*/*"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36 451bypass/1.0",
+        "Accept": "*/*",
+        "Host": target_host
     }
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
@@ -112,11 +127,17 @@ def perform_check(
 
     if proxy_up and not use_gateway:
         tested_via_proxy = True
-        url = f"https://{domain}{path}"
+        url = f"https://{target_host}{path}"
         try:
-            ctx = ssl._create_unverified_context()
+            ctx = ssl.create_default_context()
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+            try:
+                ctx.set_alpn_protocols(["http/1.1"])
+            except Exception:
+                pass
             conn = http.client.HTTPSConnection("127.0.0.1", proxy_port, context=ctx, timeout=timeout_sec)
-            conn.set_tunnel(domain, 443)
+            conn.set_tunnel(target_host, 443)
             conn.request("GET", path, headers=headers)
             resp = conn.getresponse()
             latency = (time.perf_counter() - start_time) * 1000.0

@@ -16,11 +16,9 @@ google.ai
 generativeai.google
 deepmind.google
 deepmind.com
-gemma.google
 colab.research.google.com
 idx.google.dev
 kaggle.com
-kaggle.net
 api.openai.com
 api.anthropic.com
 api.x.ai
@@ -31,7 +29,6 @@ api.elevenlabs.io
 api.perplexity.ai
 api.cohere.ai
 4pda.to
-4pda.ws
 habr.com
 claude.ai
 claude.com
@@ -45,7 +42,6 @@ oaistatic.com
 oaiusercontent.com
 chat.com
 ai.com
-chat.openai.com.cdn.cloudflare.net
 production-openaicom-storage.azureedge.net
 x.ai
 grok.com
@@ -63,7 +59,6 @@ lookerstudio.google.com
 proactivebackend-pa.googleapis.com
 intel.com
 intel.de
-intel.nl
 geolocation.onetrust.com
 hashicorp.com
 terraform.io
@@ -84,15 +79,10 @@ toolbox.app
 jetbrains.team
 supercell.com
 clashofclans.com
-brawlstarsgame.com
-clashroyaleapp.com
-squadbustersgame.com
-haydaygame.com
 copilot.microsoft.com
 designer.microsoft.com
 xsts.auth.xboxlive.com
 salesforce.com
-salesforceiq.com
 force.com
 force-user-content.com
 salesforceliveagent.com
@@ -113,14 +103,11 @@ netflixinvestor.com
 netflixtechblog.com
 nflxext.com
 nflximg.com
-nflximg.net
-nflxsearch.net
 nflxso.net
 nflxvideo.net
 autodesk.com
 cdn.web-platform.io
 assets.heroku.com
-herokucdn.com
 gaming.amazon.com
 primevideo.com
 vmware.com
@@ -128,7 +115,6 @@ download3.omnissa.com
 geforcenow.com
 gfn.am
 developer.nvidia.com
-install.launcher.omniverse.nvidia.com
 canva.dev
 canva.com
 kaleido.ai
@@ -138,10 +124,7 @@ parallels.com
 myparallels.com
 parallels.net
 parallels.cn
-parallelsaccess.com
 crunchyroll.com
-v.vrv.co
-vod-fy.crunchyrollcdn.com
 a-vrv.akamaized.net
 paddle.com
 paddlestatus.com
@@ -149,7 +132,6 @@ profitwell.com
 paritydeals.com
 cursor.sh
 cursor-cdn.com
-cursorapi.com
 cursor.sh
 adobe.com
 adobe.io
@@ -158,9 +140,6 @@ servarr.com
 nba.com
 lambdalabs.com
 grafana.com
-xtracloud.net
-glpals.com
-gpsonextra.net
 reactflow.dev
 netlify.com
 bell-sw.com
@@ -267,10 +246,8 @@ broncosportforum.com
 lightning.ai
 timberland.de
 framer.com
-framerstatic.com
 framercanvas.com
 framerusercontent.com
-framercdn.com
 framer.app
 squareup.com
 research.net
@@ -285,9 +262,7 @@ flourish.studio
 groq.com
 walmart.com
 codeium.com
-digitalcontent.sky
 sky.com
-skycdp.com
 broadcom.com
 bitnami.com
 recraft.ai
@@ -298,7 +273,6 @@ pcmag.com
 zapier.com
 ducati.com
 btod.com
-onfastspring.com
 chaos.com
 sketchup.com
 data-cdn.mbamupdates.com
@@ -316,7 +290,6 @@ singlekey-id.com
 home-connect.com
 omnissa.com
 dell.com
-dellcdn.com
 cisco.com
 fluke.com
 iherb.com
@@ -329,7 +302,6 @@ unscreen.com
 remna.st
 nordvpn.com
 nordaccount.com
-nordcdn.com
 ghostrc.game.idtech.services
 spitfireaudio.com
 uaudio.com
@@ -343,8 +315,6 @@ corsair.com
 mattermost.com
 sentry.io
 sentry.dev
-torrenteditor.com
-ntp.msn.com
 oracle.com
 etsy.com
 myheritage.com
@@ -353,7 +323,6 @@ reve.art
 clip.opus.pro
 capacitorjs.com
 manus.im
-files.manus.cdn
 gpu-monkey.com
 amplitude.com
 clamav.net
@@ -373,7 +342,6 @@ boschaftermarket.com
 langdock.com
 mailinator.com
 marvelsnap.com
-seconddinnertech.com
 snapgametech.com
 fxnetworks.com
 deepl.com
@@ -399,8 +367,6 @@ openrouter.ai
 trae.ai
 yeggi.com
 wbgames.com
-wbagora.com
-openh264.org
 wunderground.com
 intuit.com
 deezer.com
@@ -410,8 +376,6 @@ snapgene.com
 miracleptr.wordpress.com
 uizard.io
 grizzlysms.com
-lgthinq.com
-lgeapi.com
 data.cline.bot
 exchanger.bits.media
 tidal.com
@@ -489,7 +453,6 @@ se.com
 schneider-electric.com
 iedb.org
 sharefile.com
-sharefile.io
 syslog-ng.com
 patreon.com
 patreonusercontent.com
