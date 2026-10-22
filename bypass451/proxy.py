@@ -126,6 +126,7 @@ def enable_system_env_proxy(port: int = DEFAULT_PROXY_PORT) -> bool:
     if sys.platform != "win32":
         return False
     proxy_val = f"http://127.0.0.1:{port}"
+    no_proxy_val = "localhost,127.0.0.1,::1"
     try:
         key = winreg.OpenKey(
             winreg.HKEY_CURRENT_USER,
@@ -135,6 +136,8 @@ def enable_system_env_proxy(port: int = DEFAULT_PROXY_PORT) -> bool:
         )
         for var in ["HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy", "ALL_PROXY", "all_proxy"]:
             winreg.SetValueEx(key, var, 0, winreg.REG_SZ, proxy_val)
+        for var in ["NO_PROXY", "no_proxy"]:
+            winreg.SetValueEx(key, var, 0, winreg.REG_SZ, no_proxy_val)
         winreg.CloseKey(key)
         broadcast_setting_change()
         return True
@@ -151,7 +154,7 @@ def disable_system_env_proxy() -> bool:
             0,
             winreg.KEY_SET_VALUE
         )
-        for var in ["HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy", "ALL_PROXY", "all_proxy"]:
+        for var in ["HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy", "ALL_PROXY", "all_proxy", "NO_PROXY", "no_proxy"]:
             try:
                 winreg.DeleteValue(key, var)
             except FileNotFoundError:
@@ -398,10 +401,224 @@ class LocalProxy:
                     self.active_tunnels = max(0, self.active_tunnels - 1)
             return
 
-        # 4. Standard HTTP proxy requests
-        writer.write(b"HTTP/1.1 400 Bad Request\r\nContent-Type: text/plain\r\n\r\n451bypass supports HTTPS CONNECT and PAC\r\n")
-        await writer.drain()
-        writer.close()
+        # 4. Standard HTTP proxy and gateway requests (GET, POST, PUT, DELETE, etc.)
+        from urllib.parse import urlsplit
+
+        target_host = None
+        target_port = 80
+        target_path = path
+
+        if path.startswith("http://") or path.startswith("https://"):
+            parsed = urlsplit(path)
+            target_host = parsed.hostname or ""
+            target_port = parsed.port or (443 if parsed.scheme == "https" else 80)
+            target_path = parsed.path or "/"
+            if parsed.query:
+                target_path += f"?{parsed.query}"
+        elif "host" in headers:
+            host_header = headers["host"]
+            if ":" in host_header:
+                h_parts = host_header.split(":", 1)
+                target_host = h_parts[0]
+                try:
+                    target_port = int(h_parts[1])
+                except ValueError:
+                    target_port = 80
+            else:
+                target_host = host_header
+                target_port = 80
+
+        if not target_host:
+            writer.write(b"HTTP/1.1 400 Bad Request\r\nContent-Type: text/plain\r\n\r\nMissing host header\r\n")
+            await writer.drain()
+            writer.close()
+            return
+
+        is_loopback = target_host.lower() in ("127.0.0.1", "localhost", "::1")
+        if is_loopback and target_port == self.port:
+            # Direct API request to 451bypass (AI Gateway reverse proxy)
+            if self.cfg.worker_name and self.cfg.subdomain and (target_path.startswith("/v1") or "/" in target_path.strip("/")):
+                upstream_url = f"https://{self.cfg.worker_name}.{self.cfg.subdomain}.workers.dev{target_path}"
+                client_timeout = aiohttp.ClientTimeout(total=60.0)
+                fwd_headers = {k: v for k, v in headers.items() if k not in ("host", "content-length", "connection")}
+                fwd_headers["User-Agent"] = "451bypass/1.0"
+                if self.cfg.gateway_secret:
+                    fwd_headers["X-451bypass-Secret"] = self.cfg.gateway_secret
+
+                body = None
+                content_len = int(headers.get("content-length", "0")) if headers.get("content-length", "").isdigit() else 0
+                if content_len > 0:
+                    try:
+                        body = await asyncio.wait_for(reader.readexactly(content_len), timeout=15.0)
+                    except Exception:
+                        pass
+
+                async with aiohttp.ClientSession(timeout=client_timeout) as session:
+                    try:
+                        async with session.request(method, upstream_url, headers=fwd_headers, data=body) as resp:
+                            resp_body = await resp.read()
+                            out = f"HTTP/1.1 {resp.status} {resp.reason}\r\n"
+                            for hk, hv in resp.headers.items():
+                                if hk.lower() not in ("transfer-encoding", "content-length", "connection"):
+                                    out += f"{hk}: {hv}\r\n"
+                            out += f"Content-Length: {len(resp_body)}\r\nConnection: close\r\n\r\n"
+                            writer.write(out.encode("utf-8") + resp_body)
+                            await writer.drain()
+                            writer.close()
+                            return
+                    except Exception as e:
+                        err_bytes = json.dumps({"error": str(e)}).encode()
+                        writer.write(b"HTTP/1.1 502 Bad Gateway\r\nContent-Type: application/json\r\nContent-Length: " + str(len(err_bytes)).encode() + b"\r\nConnection: close\r\n\r\n" + err_bytes)
+                        await writer.drain()
+                        writer.close()
+                        return
+
+            resp_info = json.dumps({
+                "service": "451bypass",
+                "status": "running",
+                "port": self.port,
+                "pac": f"http://127.0.0.1:{self.port}/proxy.pac"
+            }).encode()
+            writer.write(b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: " + str(len(resp_info)).encode() + b"\r\nConnection: close\r\n\r\n" + resp_info)
+            await writer.drain()
+            writer.close()
+            return
+
+        # Prepare request head for forwarding
+        req_head = f"{method} {target_path} HTTP/1.1\r\n"
+        for k, v in headers.items():
+            lk = k.lower()
+            if lk in ("proxy-connection", "proxy-authorization"):
+                continue
+            if lk == "connection":
+                v = "close"
+            req_head += f"{k}: {v}\r\n"
+        if "connection" not in headers:
+            req_head += "connection: close\r\n"
+        req_head += "\r\n"
+        req_bytes = req_head.encode("utf-8")
+
+        # Check domain blockage
+        active_domains = set(get_active_domains(self.cfg))
+        is_blocked = False
+        if not is_loopback:
+            lower_host = target_host.lower()
+            if lower_host in active_domains:
+                is_blocked = True
+            else:
+                dot = lower_host.find('.')
+                while dot != -1:
+                    lower_host = lower_host[dot + 1:]
+                    if lower_host in active_domains:
+                        is_blocked = True
+                        break
+                    dot = lower_host.find('.')
+
+        if not is_blocked:
+            # Direct TCP connection (loopback, e.g. Omniroute, or unblocked external host)
+            try:
+                remote_reader, remote_writer = await asyncio.open_connection(target_host, target_port)
+                remote_writer.write(req_bytes)
+                await remote_writer.drain()
+
+                async def pipe_body(r, w):
+                    try:
+                        while True:
+                            data = await r.read(65536)
+                            if not data:
+                                break
+                            w.write(data)
+                            await w.drain()
+                    except Exception:
+                        pass
+                    finally:
+                        try:
+                            w.close()
+                            await w.wait_closed()
+                        except Exception:
+                            pass
+
+                t1 = asyncio.create_task(pipe_body(reader, remote_writer))
+                t2 = asyncio.create_task(pipe_body(remote_reader, writer))
+                done, pending = await asyncio.wait([t1, t2], return_when=asyncio.FIRST_COMPLETED)
+                for t in pending:
+                    t.cancel()
+                await asyncio.gather(*pending, return_exceptions=True)
+            except Exception:
+                try:
+                    writer.write(b"HTTP/1.1 502 Bad Gateway\r\n\r\n")
+                    await writer.drain()
+                    writer.close()
+                except Exception:
+                    pass
+            return
+
+        # Blocked external host -> WebSocket tunnel to Cloudflare Worker
+        tunnel_url = self._get_worker_tunnel_url(f"{target_host}:{target_port}")
+        self.active_tunnels += 1
+        self.total_tunnels += 1
+        client_timeout = aiohttp.ClientTimeout(total=None, connect=15.0)
+        ws_headers = {"User-Agent": "451bypass/1.0"}
+        if self.cfg.gateway_secret:
+            ws_headers["X-451bypass-Secret"] = self.cfg.gateway_secret
+
+        async with aiohttp.ClientSession(timeout=client_timeout) as session:
+            try:
+                async with session.ws_connect(tunnel_url, headers=ws_headers) as ws:
+                    await ws.send_bytes(req_bytes)
+
+                    async def client_to_ws():
+                        try:
+                            while True:
+                                data = await reader.read(65536)
+                                if not data:
+                                    break
+                                await ws.send_bytes(data)
+                        except Exception:
+                            pass
+                        finally:
+                            try:
+                                await ws.close()
+                            except Exception:
+                                pass
+
+                    async def ws_to_client():
+                        try:
+                            async for msg in ws:
+                                if msg.type == aiohttp.WSMsgType.BINARY:
+                                    writer.write(msg.data)
+                                    await writer.drain()
+                                elif msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR):
+                                    break
+                        except Exception:
+                            pass
+                        finally:
+                            try:
+                                writer.close()
+                                await writer.wait_closed()
+                            except Exception:
+                                pass
+
+                    t1 = asyncio.create_task(client_to_ws())
+                    t2 = asyncio.create_task(ws_to_client())
+                    done, pending = await asyncio.wait([t1, t2], return_when=asyncio.FIRST_COMPLETED)
+                    for t in pending:
+                        t.cancel()
+                    await asyncio.gather(*pending, return_exceptions=True)
+                    try:
+                        writer.close()
+                        await writer.wait_closed()
+                    except Exception:
+                        pass
+            except Exception:
+                try:
+                    writer.write(b"HTTP/1.1 502 Bad Gateway\r\n\r\n")
+                    await writer.drain()
+                    writer.close()
+                except Exception:
+                    pass
+            finally:
+                self.active_tunnels = max(0, self.active_tunnels - 1)
 
     async def start(self):
         try:
