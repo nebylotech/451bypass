@@ -197,6 +197,61 @@ class LocalProxy:
         # 3. HTTPS CONNECT Tunnel
         if method == "CONNECT":
             target = path
+            last_colon = target.rfind(":")
+            host = target[:last_colon] if last_colon != -1 else target
+            port_str = target[last_colon + 1:] if last_colon != -1 else "443"
+            port = int(port_str) if port_str.isdigit() else 443
+
+            active_domains = set(get_active_domains(self.cfg))
+            is_blocked = False
+            lower_host = host.lower()
+            if lower_host in active_domains:
+                is_blocked = True
+            else:
+                dot = lower_host.find('.')
+                while dot != -1:
+                    lower_host = lower_host[dot + 1:]
+                    if lower_host in active_domains:
+                        is_blocked = True
+                        break
+                    dot = lower_host.find('.')
+
+            if not is_blocked:
+                # Direct TCP tunnel (100% provider speed without proxy overhead)
+                try:
+                    remote_reader, remote_writer = await asyncio.open_connection(host, port)
+                    writer.write(b"HTTP/1.1 200 Connection Established\r\n\r\n")
+                    await writer.drain()
+
+                    async def pipe(r, w):
+                        try:
+                            while True:
+                                data = await r.read(65536)
+                                if not data:
+                                    break
+                                w.write(data)
+                                await w.drain()
+                        except Exception:
+                            pass
+                        finally:
+                            try:
+                                w.close()
+                                await w.wait_closed()
+                            except Exception:
+                                pass
+
+                    t1 = asyncio.create_task(pipe(reader, remote_writer))
+                    t2 = asyncio.create_task(pipe(remote_reader, writer))
+                    done, pending = await asyncio.wait([t1, t2], return_when=asyncio.FIRST_COMPLETED)
+                    for t in pending:
+                        t.cancel()
+                    await asyncio.gather(*pending, return_exceptions=True)
+                except Exception:
+                    writer.write(b"HTTP/1.1 502 Bad Gateway\r\n\r\n")
+                    await writer.drain()
+                    writer.close()
+                return
+
             tunnel_url = self._get_worker_tunnel_url(target)
             self.active_tunnels += 1
             self.total_tunnels += 1
