@@ -36,17 +36,20 @@ api.anthropic.com
 
 # --- Google AI & Gemini ---
 gemini.google.com
+bard.google.com
 aistudio.google.com
 ai.google.dev
 generativelanguage.googleapis.com
+accounts.google.com
+clients6.google.com
 alkalimakersuite-pa.clients6.google.com
+apis.google.com
 makersuite.google.com
 notebooklm.google
 notebooklm.google.com
 notebook.google
 idx.google.dev
 colab.research.google.com
-bard.google.com
 ai.google
 deepmind.google
 deepmind.com
