@@ -147,6 +147,12 @@ irm https://raw.githubusercontent.com/nebylotech/451bypass/main/uninstall.ps1 | 
 
 ---
 
+### 📄 Лицензия
+
+Распространяется под лицензией [MIT](LICENSE).
+
+---
+
 <p align="center">
   <b>Понравился проект? Поставьте звёздочку ⭐ на GitHub!</b>
 </p>
